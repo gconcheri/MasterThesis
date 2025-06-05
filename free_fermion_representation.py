@@ -1,0 +1,158 @@
+import numpy as np
+from scipy import sparse
+
+
+class FermionicGaussianRepresentation:
+
+	def __init__(self, model):
+
+		n = model.Nsites // 2
+		self.n = n
+
+		Omega = np.zeros((2 * n, 2 * n), complex)
+		for ii in range(n):
+			Omega[ii, 2 * ii] = 1
+			Omega[ii, 2 * ii + 1] = -1j
+			Omega[ii + n, 2 * ii] = 1
+			Omega[ii + n, 2 * ii + 1] = 1j
+		Omega /= 2
+		self._Omega = Omega
+		self._Omega_inv = 2 * Omega.T.conj()
+
+		# Omega_inv corresponds to the Omega in the paper, however it is not exactly the same.
+		#i.e. Omega_inv here creates complex fermions pairing adjacent Majorana operators gamma_i gamma_i+1!
+
+		self.Cov = build_covariance_matrix(model)
+		self.Corr = self.cov_to_corr(self.Cov)
+
+
+
+	def Hamiltonian_dirac(self, Hmaj):
+		'''
+		Calculates the Dirac Hamiltonian for the Majorana Hamiltonian Hmaj.
+		Note: H = i (gamma1 ... gamma2n) Hmaj (gamma1 ... gamma2n)^T 
+
+		Parameters:
+		----------
+		Hmaj: array_like
+			2n x 2n real antisymmetric matrix.
+
+		Returns:
+		--------
+		Hdirac: array_like
+			Hamiltonian in terms of Dirac operators.
+			H = (c1 ... cn c1^dagger ... cn^dagger) Hdirac (c1^dagger ... cn^dagger c1 ... cn)^T
+		'''
+		Hdirac = 1j * self._Omega_inv.T.conj() @ Hmaj @ self._Omega_inv
+		return Hdirac
+
+	def corr_to_cov(self, corr):
+		return np.real_if_close(1j * (np.eye(2 * self.n) - self._Omega_inv @ corr @ self._Omega_inv.T.conj()))
+
+	def cov_to_corr(self, cov):
+		return self._Omega @ (1j * cov + np.eye(2 * self.n)) @ self._Omega.T.conj()
+
+
+def u_config(model, type=None):
+    xx_bondlist, yy_bondlist, zz_bondlist = model.get_bonds()
+    u = np.ones((model.Nsites, model.Nsites), dtype=np.complex128)
+
+    if type == 'Anyon':
+        anyon_bondlist, _, _ = model.get_anyonbonds()
+        for i, j in anyon_bondlist:
+            u[i, j] = -1
+            u[j, i] = -1
+    return u
+
+
+def generate_Hamiltonian_Majorana(model, Jxx=1.0, Jyy=1.0, Jzz=1.0, type=None):
+
+	"""
+	H = i Σ_{i,j} J_{ij, alpha} u_ij (γ_i γ_j - γ_j γ_i)
+
+	where γ_i are Majorana operators and J_{ij} are the coupling constants, where alpha = xx, yy, zz.
+
+	If Type= None -> all uijs are 1, i.e. all plaquette terms = +1
+	If type= anyon: they are chosen in such a way that we create an anyon at the central plaquette of our system.
+
+	Convention: i,j combination occurs only once, in the order of xx, yy, zz bonds
+	i.e. (i ∈ A sublattice, j ∈ B sublattice).
+	
+	Parameters:
+	model: Model object containing the lattice structure and bond information.
+	
+	Returns:
+	H: Matrix representing the Hamiltonian in Majorana representation.
+
+	"""
+	#Initialize the Hamiltonian as a sparse matrix or as a numpy array
+	H = np.zeros((model.Nsites, model.Nsites), dtype=np.complex128)
+	#H = sparse.csr_array((np.zeros((model.Nsites, model.Nsites), dtype=np.complex128)))  
+	xx_bondlist, yy_bondlist, zz_bondlist = model.get_bonds()
+
+    # Add xx bonds
+	if Jxx != 0:
+		print(f"Adding xx bonds with Jxx = {Jxx}")
+		for i, j in xx_bondlist:
+			H[i,j] += 1j * Jxx/2.
+			H[j,i] += - 1j * Jxx/2.
+
+	# Add yy bonds
+	if Jyy != 0:
+		print(f"Adding yy bonds with Jyy = {Jyy}")
+		for i, j in yy_bondlist:
+			H[i,j] += 1j * Jyy/2.
+			H[j,i] += - 1j * Jyy/2.
+    
+    # Add zz bonds
+	if Jzz != 0:
+		print(f"Adding zz bonds with Jzz = {Jzz}")
+		for i, j in zz_bondlist:
+			H[i,j] += 1j * Jzz/2.
+			H[j,i] += - 1j * Jzz/2.
+
+	if type == "Anyon":
+		print('type = Anyon!')
+		u = u_config(model, type = 'Anyon')
+		H = H * u
+			
+	return H
+	
+
+def build_covariance_matrix(model):
+	"""
+	Builds the covariance matrix of the initial states |psi_0> and |psi_e> of the 
+	Honeycomb model
+	
+	cov_ij = i <(γ_i γ_j - γ_j γ_i)>
+	
+	I.e. in every plaquette, the majorana fermions are coupled diagonally, thus 
+	giving rise to diagonal dirac/complex unoccupied fermion (parity +1)
+	"""
+
+	diag_bonds = model.get_diagonalbonds()
+	Cov = np.zeros((model.Nsites, model.Nsites), dtype=np.complex128)
+
+	for i, j in diag_bonds:
+		Cov[i, j] = 2
+		Cov[j, i] = - 2
+
+	return Cov
+
+
+# def give_a_ground_state(n, g):
+# 	Hmaj = generate_Hamiltonian_Majorana(g, n)
+# 	FGH = FermionicGaussianHamiltonian(Hmaj)
+# 	Cov = FGH.covariance_matrix_ground_state()
+# 	return Cov
+
+
+if __name__ == '__main__':
+	n = 16
+	g = 1
+
+	Hmaj = generate_Hamiltonian_Majorana(g, n)
+
+	FGH = FermionicGaussianRepresentation(Hmaj)
+
+	Cov = FGH.covariance_matrix_ground_state()

@@ -42,6 +42,8 @@ class SitesOBC(BaseSites):
         self.Nsites = self.get_Nsites()
         self.ids = np.arange(self.Nsites)
         self.partition = self.get_partition()
+        self.ids_A = [id for id in self.ids if self.partition[id] == 'A']
+        self.ids_B = [id for id in self.ids if self.partition[id] == 'B']
         
     def id_to_idxidy(self, id):
         idy = (id + 1) // self.Nxsites_2
@@ -102,6 +104,13 @@ class SitesOBC(BaseSites):
         if self.Npy > 2:
             Nsites = (self.Nyrows - 2)*self.Nxsites_2 + Nsites
         return Nsites
+    
+    def get_Nxsite(self, id):
+        idx, idy = self.id_to_idxidy(id)
+        if idy == 0 or idy == self.Nyrows - 1:
+            return self.Nxsites_1
+        else:
+            return self.Nxsites_2
         
     
     #define bond list for xx bonds, then for yy bonds and zz bonds, in this way we can then construct the Hamiltonian with fermionic operators!!
@@ -179,26 +188,33 @@ class SitesOBC(BaseSites):
                         else: # odd number of plaquettes along y
                             zz_bondlist.append([id-self.Nxsites_2, id])
     
-
-        # for idy in range(self.Nyrows):
-        #     if idy == 0 or idy % 2 ==  or idy == self.Nyrows - 1:
-        #         for idx in range(self.Nxsites_1 - 1):
-        #             id = self.idxidy_to_id(idx, idy)
-        #             if id < self.Nsites - 1:
-        #                 bondlist.append((id, self.idxidy_to_id(idx + 1, idy)))
-        #     for idx in range(0, self.Nxsites_2 - 1,2):
-        #         id = self.idxidy_to_id(idx, idy)
-        #         if id < self.Nsites - 1:
-        #             bondlist.append((id, self.idxidy_to_id(idx + 2, idy)))
-        # for id in range(self.Nsites):
-        #     idx, idy = self.id_to_idxidy(id)
-        #     if idx < self.Nxsites_2 - 1:
-        #         bondlist.append((id, self.idxidy_to_id(idx + 1, idy)))
-        # else:
-        #     if idx < self.Nxsites - 1:
-        #         bondlist.append((id, self.idxidy_to_id(idx + 1, idy)))
+        
+        yy_bondlist = [[b,a] for [a, b] in yy_bondlist]  # reverse the order of yy bonds to match the convention
         
         return xx_bondlist, yy_bondlist, zz_bondlist
+    
+    def get_diagonalbonds(self):
+        """
+        Returns a list of diagonal bonds in the honeycomb lattice.
+        Diagonal bonds connect sites in different sublattices (A and B) that are diagonally adjacent.
+        i.e. site from the top left corner of a plaquette to the bottom right corner of the next plaquette.
+        """
+        diag_bondlist = []
+
+        for i, id in enumerate(self.ids_A):
+            idx, idy = self.id_to_idxidy(id)
+            if i % (self.Npx+1) != self.Npx: #if id is not the last site in sublattice A for that row
+                if idy < self.Nyrows - 2:  # if id not in the last two rows
+                    next_id = self.idxidy_to_id(idx + 2, idy + 1)
+                    diag_bondlist.append([id, next_id])
+                elif idy == self.Nyrows - 2:    # we are in the second last row
+                    if self.Npy % 2 == 0:
+                        next_id = self.idxidy_to_id(idx + 1, idy + 1)
+                        diag_bondlist.append([id, next_id])
+                    else:
+                        next_id = self.idxidy_to_id(idx + 2, idy + 1)
+                        diag_bondlist.append([id, next_id])
+        return diag_bondlist
             
     # more efficient way to get coordinates
 
@@ -244,6 +260,8 @@ class SitesPBC(BaseSites):
         self.Nsites = 2 * Npx * (Npy + 1) 
         self.ids = np.arange(self.Nsites)
         self.partition = self.get_partition()
+        self.ids_A = [id for id in self.ids if self.partition[id] == 'A']
+        self.ids_B = [id for id in self.ids if self.partition[id] == 'B']
 
     def id_to_idxidy(self, id):
         #convert id to idx, idy
@@ -318,9 +336,62 @@ class SitesPBC(BaseSites):
                     if self.Npy % 2 == 0: # even number of plaquettes along y
                         zz_bondlist.append([id-self.Nxsites+1, id])
                     else: # odd number of plaquettes along y
-                        zz_bondlist.append([id-self.Nxsites, id])                    
+                        zz_bondlist.append([id-self.Nxsites, id])      
+        
+        yy_bondlist = [[b,a] for [a, b] in yy_bondlist]  # reverse the order of yy bonds to match the convention              
 
         return xx_bondlist, yy_bondlist, zz_bondlist
+    
+    def get_diagonalbonds(self):
+        """
+        Returns a list of diagonal bonds in the honeycomb lattice.
+        Diagonal bonds connect sites in different sublattices (A and B) that are diagonally adjacent.
+        i.e. site from the top left corner of a plaquette to the bottom right corner of the next plaquette.
+        """
+        diag_bondlist = []
+
+        for id in self.ids_A:  # iterate over every second site (only sites in A sublattice)
+            idx, idy = self.id_to_idxidy(id)
+            if idy < self.Nyrows - 2:  # we are not in the last and second last row
+                next_id = self.idxidy_to_id((idx + 2) % self.Nxsites, idy + 1)
+                diag_bondlist.append([id, next_id])
+            elif idy == self.Nyrows - 2:  # we are in the second last row
+                if self.Npy % 2 == 0:  # even number of plaquettes along y
+                    next_id = self.idxidy_to_id((idx + 1) % self.Nxsites, idy + 1)
+                    diag_bondlist.append([id, next_id])
+                else:  # odd number of plaquettes along y
+                    next_id = self.idxidy_to_id((idx + 2) % self.Nxsites, idy + 1)
+                    diag_bondlist.append([id, next_id])
+        return diag_bondlist
+
+    def get_anyonbonds(self): 
+        """
+        Returns a list of bonds on which to fix u_ij=-1 in order to create anyon in the plaquette
+        located at the plaquette coordinates: px = Npx//2, py = Npx//2, written in numb of
+        horizontal and vertical plaquettes from the origin (top-left corner in lattice).
+        """
+        anyon_bondlist = []
+        # px = self.id_to_idxidy(self.ids_A[self.Npx//2])[0]  # horizontal plaquette coordinate
+        # py = self.Nyrows // 2
+
+        # print("px", px, "py", py)
+
+        # id_start = self.idxidy_to_id(px,py)
+
+        index = len(self.ids_A)//2
+        id_start = self.ids_A[index]
+        idx_start, idy_start = self.id_to_idxidy(id_start)
+        id = id_start
+
+        idx, idy = self.id_to_idxidy(id)
+
+        while idx < self.Nxsites-1:
+            anyon_bondlist.append([id, id+1])
+            id += 1
+            idx, _ = self.id_to_idxidy(id)
+
+        return anyon_bondlist, idx_start, idy_start
+
     
     def get_coordinates(self):
         coords = []
