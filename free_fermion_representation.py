@@ -25,7 +25,7 @@ class FermionicGaussianRepresentation:
 		#i.e. Omega_inv here creates complex fermions pairing adjacent Majorana operators gamma_i gamma_i+1!
 
 		self.Cov = build_covariance_matrix(model)
-		self.Corr = self.cov_to_corr(self.Cov)
+		self.Corr = self.cov_to_corr()
 
 
 
@@ -48,11 +48,15 @@ class FermionicGaussianRepresentation:
 		Hdirac = 1j * self._Omega_inv.T.conj() @ Hmaj @ self._Omega_inv
 		return Hdirac
 
-	def corr_to_cov(self, corr):
-		return np.real_if_close(1j * (np.eye(2 * self.n) - self._Omega_inv @ corr @ self._Omega_inv.T.conj()))
+	def corr_to_cov(self):
+		# return np.real_if_close(1j * (np.eye(2 * self.n) - self._Omega_inv @ self.Corr @ self._Omega_inv.T.conj()))
+		return np.real_if_close(1j * (0.5*np.eye(2 * self.n) - self._Omega_inv @ self.Corr @ self._Omega_inv.T.conj()))
+	
 
-	def cov_to_corr(self, cov):
-		return self._Omega @ (1j * cov + np.eye(2 * self.n)) @ self._Omega.T.conj()
+	def cov_to_corr(self):
+		# return self._Omega @ (1j * self.Cov + np.eye(2 * self.n)) @ self._Omega.T.conj()
+		return - self._Omega @ (1j * self.Cov + 0.5* np.eye(2 * self.n)) @ self._Omega.T.conj()
+
 	
 	def update_corr_matrix(self, H, t):
 		return expm(- 1j * 2 * H * t) @ self.Corr @ expm(1j * 2 * H * t)
@@ -67,7 +71,7 @@ class FermionicGaussianRepresentation:
 
 	def expectation_val_Majorana_string(self, majoranas):
 		"""
-		majoranas is a list of 0 and 1 of length 2*L, where 1 (?) indicates that that majorana is included.
+		majoranas is a list of 0 and 1 of length 2*n, where 1 indicates that that majorana is included.
 		"""
 		
 		majoranas_bool = majoranas.astype(bool)
@@ -149,7 +153,7 @@ def build_covariance_matrix(model):
 	Builds the covariance matrix of the initial states |psi_0> and |psi_e> of the 
 	Honeycomb model
 	
-	cov_ij = i <(γ_i γ_j - γ_j γ_i)>
+	cov_ij = i <(γ_i γ_j - γ_j γ_i)> / 2
 	
 	I.e. in every plaquette, the majorana fermions are coupled diagonally, thus 
 	giving rise to diagonal dirac/complex unoccupied fermion (parity +1)
@@ -159,17 +163,12 @@ def build_covariance_matrix(model):
 	Cov = np.zeros((model.Nsites, model.Nsites), dtype=np.complex128)
 
 	for i, j in diag_bonds:
-		Cov[i, j] = 2
-		Cov[j, i] = - 2
+		Cov[i, j] = 1
+		Cov[j, i] = - 1
 
 	return Cov
 
 
-# def give_a_ground_state(n, g):
-# 	Hmaj = generate_Hamiltonian_Majorana(g, n)
-# 	FGH = FermionicGaussianHamiltonian(Hmaj)
-# 	Cov = FGH.covariance_matrix_ground_state()
-# 	return Cov
 
 
 if __name__ == '__main__':
