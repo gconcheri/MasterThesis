@@ -378,7 +378,7 @@ class SitesPBC(BaseSites):
 
         # id_start = self.idxidy_to_id(px,py)
 
-        index = len(self.ids_A)//2
+        index = len(self.ids_A)//2 + 2
         id_start = self.ids_A[index]
         idx_start, idy_start = self.id_to_idxidy(id_start)
         id = id_start

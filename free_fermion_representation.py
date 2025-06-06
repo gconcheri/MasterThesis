@@ -1,5 +1,7 @@
 import numpy as np
 from scipy import sparse
+from scipy.linalg import expm
+from pfapack import pfaffian as pf
 
 
 class FermionicGaussianRepresentation:
@@ -51,6 +53,29 @@ class FermionicGaussianRepresentation:
 
 	def cov_to_corr(self, cov):
 		return self._Omega @ (1j * cov + np.eye(2 * self.n)) @ self._Omega.T.conj()
+	
+	def update_corr_matrix(self, H, t):
+		return expm(- 1j * 2 * H * t) @ self.Corr @ expm(1j * 2 * H * t)
+	
+	# def expectation_value(self, model, site_list):
+	# 	"""
+	# 	Using Wick's theorem, we calculate <gamma_i ... gamma_j> = Pf(cov_{i,...,j})
+	# 	where cov_{i,...,j} is the covariance matrix bla bla bla
+
+	# 	Important: i<...<j
+	# 	"""
+
+	def expectation_val_Majorana_string(self, majoranas):
+		"""
+		majoranas is a list of 0 and 1 of length 2*L, where 1 (?) indicates that that majorana is included.
+		"""
+		
+		majoranas_bool = majoranas.astype(bool)
+		
+		Cov_reduced = self.Cov[majoranas_bool][:, majoranas_bool]
+	
+		return pf.pfaffian(Cov_reduced) # is the pfaffian directly the expectation value of the string?
+
 
 
 def u_config(model, type=None):
@@ -90,7 +115,7 @@ def generate_Hamiltonian_Majorana(model, Jxx=1.0, Jyy=1.0, Jzz=1.0, type=None):
 	#H = sparse.csr_array((np.zeros((model.Nsites, model.Nsites), dtype=np.complex128)))  
 	xx_bondlist, yy_bondlist, zz_bondlist = model.get_bonds()
 
-    # Add xx bonds
+	# Add xx bonds
 	if Jxx != 0:
 		print(f"Adding xx bonds with Jxx = {Jxx}")
 		for i, j in xx_bondlist:
@@ -103,8 +128,8 @@ def generate_Hamiltonian_Majorana(model, Jxx=1.0, Jyy=1.0, Jzz=1.0, type=None):
 		for i, j in yy_bondlist:
 			H[i,j] += 1j * Jyy/2.
 			H[j,i] += - 1j * Jyy/2.
-    
-    # Add zz bonds
+
+	# Add zz bonds
 	if Jzz != 0:
 		print(f"Adding zz bonds with Jzz = {Jzz}")
 		for i, j in zz_bondlist:
