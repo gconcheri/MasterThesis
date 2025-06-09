@@ -59,7 +59,7 @@ class FermionicGaussianRepresentation:
 
 	
 	def update_corr_matrix(self, H, t):
-		return expm(- 1j * 2 * H * t) @ self.Corr @ expm(1j * 2 * H * t)
+		self.Corr = expm(- 1j * 2 * H * t) @ self.Corr @ expm(1j * 2 * H * t)
 	
 	# def expectation_value(self, model, site_list):
 	# 	"""
@@ -68,6 +68,9 @@ class FermionicGaussianRepresentation:
 
 	# 	Important: i<...<j
 	# 	"""
+
+	def update_cov_matrix(self, R):
+		self.Cov = R.T @self.Cov@ R
 
 	def expectation_val_Majorana_string(self, majoranas):
 		"""
