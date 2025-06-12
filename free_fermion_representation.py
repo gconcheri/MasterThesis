@@ -6,7 +6,7 @@ from pfapack import pfaffian as pf
 
 class FermionicGaussianRepresentation:
 
-	def __init__(self, model):
+	def __init__(self, model, diagonalcov = True):
 
 		n = model.Nsites // 2
 		self.n = n
@@ -24,8 +24,9 @@ class FermionicGaussianRepresentation:
 		# Omega_inv corresponds to the Omega in the paper, however it is not exactly the same.
 		#i.e. Omega_inv here creates complex fermions pairing adjacent Majorana operators gamma_i gamma_i+1!
 
-		self.Cov = build_covariance_matrix(model)
+		self.Cov = build_covariance_matrix(model, diagonalcov)
 		self.Corr = self.cov_to_corr()
+
 
 
 
@@ -59,7 +60,7 @@ class FermionicGaussianRepresentation:
 
 	
 	def update_corr_matrix(self, H, t):
-		self.Corr = expm(- 1j * 2 * H * t) @ self.Corr @ expm(1j * 2 * H * t)
+		self.Corr = expm(1j * 2 * H * t) @ self.Corr @ expm(- 1j * 2 * H * t)
 	
 	# def expectation_value(self, model, site_list):
 	# 	"""
@@ -70,7 +71,7 @@ class FermionicGaussianRepresentation:
 	# 	"""
 
 	def update_cov_matrix(self, R):
-		self.Cov = R.T @self.Cov@ R
+		self.Cov = R @self.Cov@ R.T
 
 	def expectation_val_Majorana_string(self, majoranas):
 		"""
@@ -151,7 +152,7 @@ def generate_Hamiltonian_Majorana(model, Jxx=1.0, Jyy=1.0, Jzz=1.0, type=None):
 	return H
 	
 
-def build_covariance_matrix(model):
+def build_covariance_matrix(model, diagonalcov = True):
 	"""
 	Builds the covariance matrix of the initial states |psi_0> and |psi_e> of the 
 	Honeycomb model
@@ -163,11 +164,17 @@ def build_covariance_matrix(model):
 	"""
 
 	diag_bonds = model.get_diagonalbonds()
+	_, _, zz_bonds = model.get_bonds()
 	Cov = np.zeros((model.Nsites, model.Nsites), dtype=np.complex128)
 
-	for i, j in diag_bonds:
-		Cov[i, j] = 1
-		Cov[j, i] = - 1
+	if diagonalcov:
+		for i, j in diag_bonds:
+			Cov[i, j] = 1
+			Cov[j, i] = - 1
+	else:
+		for i,j in zz_bonds:
+			Cov[i, j] = 1
+			Cov[j, i] = - 1
 
 	return Cov
 

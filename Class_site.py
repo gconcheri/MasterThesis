@@ -2,6 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from mpl_toolkits.mplot3d import Axes3D
+from matplotlib.patches import Polygon
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 
 
@@ -139,8 +141,6 @@ class SitesOBC(BaseSites):
         for id in self.ids:
             idx, idy = self.id_to_idxidy(id)
             if idy == 0: # first row
-                print("first row")
-                print("id", id, "idx", idx, "idy", idy)
                 if idx != (self.Nxsites_1-1): # last site in the first row
                     if idx % 2 == 0: 
                         xx_bondlist.append([id, id+1])
@@ -150,8 +150,6 @@ class SitesOBC(BaseSites):
                 else:
                     zz_bondlist.append([id, id+self.Nxsites_1])
             elif idy % 2 == 1 and idy != (self.Nyrows-1): # odd rows
-                print("odd row")
-                print("id", id, "idx", idx, "idy", idy)
                 if idx != (self.Nxsites_2-1):
                     if idx % 2 == 1: 
                         #print("id", id, "idx", idx, "idy", idy)
@@ -164,8 +162,6 @@ class SitesOBC(BaseSites):
                     if idy != (self.Nyrows-2):
                         zz_bondlist.append([id, id+self.Nxsites_2])
             elif idy % 2 == 0 and idy != (self.Nyrows-1) and idy != 0: # even rows
-                print("even row")
-                print("id", id, "idx", idx, "idy", idy)
                 if idx != (self.Nxsites_2-1):
                     if idx % 2 == 0: 
                         xx_bondlist.append([id, id+1])
@@ -175,8 +171,6 @@ class SitesOBC(BaseSites):
                         yy_bondlist.append([id, id+1])
             elif idy == (self.Nyrows - 1): # last row
                 if idx != (self.Nxsites_1-1):
-                    print("last row")
-                    print("id", id, "idx", idx, "idy", idy)
                     if idx % 2 == 1: 
                         xx_bondlist.append([id, id+1])
                     else:
@@ -200,7 +194,7 @@ class SitesOBC(BaseSites):
         """
         Returns a list of diagonal bonds in the honeycomb lattice.
         Diagonal bonds connect sites in different sublattices (A and B) that are diagonally adjacent.
-        i.e. site from the top left corner of a plaquette to the bottom right corner of the next plaquette.
+        i.e. bonds connecting site from the top left corner of a plaquette to the bottom right corner of the same plaquette.
         """
         diag_bondlist = []
 
@@ -222,8 +216,7 @@ class SitesOBC(BaseSites):
     def get_anyonbonds(self): 
         """
         Returns a list of bonds on which to fix u_ij=-1 in order to create anyon in the plaquette
-        located at the plaquette coordinates: px = Npx//2, py = Npx//2, written in numb of
-        horizontal and vertical plaquettes from the origin (top-left corner in lattice).
+        located at the plaquette coordinates: (idx_start, idy_start) defined below.
         """
         anyon_bondlist = []
         # px = self.id_to_idxidy(self.ids_A[self.Npx//2])[0]  # horizontal plaquette coordinate
@@ -258,6 +251,25 @@ class SitesOBC(BaseSites):
             idx, _ = self.id_to_idxidy(id)
 
         return anyon_bondlist, idx_start, idy_start
+    
+    def get_plaquettecoordinates(self, id = None, idx = None, idy = None):
+        """
+        function that takes as input the central, lower site of a plaquette written as id in [0,..,self.Nsites]
+        and returns the list of id coordinates of the sites of that plaquette"""
+        if id is not None:
+            idx, idy = self.id_to_idxidy(id)
+        id_right = self.idxidy_to_id(idx+1, idy)
+        id_left = self.idxidy_to_id(idx-1, idy)
+        if idy == self.Nyrows-1 and self.Npy % 2==0:
+            id_up = self.idxidy_to_id(idx+1, idy-1)
+            id_upleft = self.idxidy_to_id(idx, idy-1)
+            id_upright = self.idxidy_to_id(idx+2, idy-1)
+        else:
+            id_up = self.idxidy_to_id(idx, idy-1)
+            id_upleft = self.idxidy_to_id(idx-1, idy-1)
+            id_upright = self.idxidy_to_id(idx+ 1, idy-1)
+        
+        return [id, id_right, id_upright, id_up, id_upleft, id_left]
             
     # more efficient way to get coordinates
 
@@ -405,6 +417,7 @@ class SitesPBC(BaseSites):
                     next_id = self.idxidy_to_id((idx + 2) % self.Nxsites, idy + 1)
                     diag_bondlist.append([id, next_id])
         return diag_bondlist
+        
 
     def get_anyonbonds(self): 
         """
@@ -447,8 +460,6 @@ class SitesPBC(BaseSites):
         offset_x = np.sqrt(3) / 2.
         for id in self.ids:
             idx, idy = self.id_to_idxidy(id)
-
-            #print("id", id, "idx", idx, "idy", idy)
             x = np.sqrt(3) * idx / 2.
             y = - 1.5 * idy
             # In un reticolo honeycomb, i siti sono su due sottoreticoli (A e B)
@@ -466,6 +477,25 @@ class SitesPBC(BaseSites):
             coords.append((x, y))
         return np.array(coords)
     
+    def get_plaquettecoordinates(self, id = None, idx = None, idy = None):
+        """
+        function that takes as input the central, lower site of a plaquette written as id in [0,..,self.Nsites]
+        and returns the list of id coordinates of the sites of that plaquette"""
+        if id is not None:
+            idx, idy = self.id_to_idxidy(id)
+        id_right = self.idxidy_to_id((idx+1) % self.Nxsites, idy)
+        id_left = self.idxidy_to_id((idx-1) % self.Nxsites, idy)
+        if idy == self.Nyrows-1 and self.Npy % 2==0:
+            id_up = self.idxidy_to_id((idx+1) % self.Nxsites, idy-1)
+            id_upleft = self.idxidy_to_id(idx, idy-1)
+            id_upright = self.idxidy_to_id((idx+2)%self.Nxsites, idy-1)
+        else:
+            id_up = self.idxidy_to_id(idx, idy-1)
+            id_upleft = self.idxidy_to_id((idx-1)%self.Nxsites, idy-1)
+            id_upright = self.idxidy_to_id((idx+ 1)%self.Nxsites, idy-1)
+        
+        return [id, id_right, id_upright, id_up, id_upleft, id_left]
+
 
     def get_coordinates_cylindric(self, a = 1):
         """
@@ -516,16 +546,51 @@ class SitesPBC(BaseSites):
 
 def plot_honeycomb(model, 
                     fig_size=(20,20), 
-                    highlight_idxidy=None, indices=None, highlight_color='orange', 
-                    plot_anyon_bonds=False, plot_diagonal_bonds = False):
+                    highlight_idxidy=None, sites=None, highlight_color='orange', #inputs to highlight sites
+                    plaquette_site= None, #input to shade a certain plaquette with lowest site= plaquette_site
+                    plot_anyon_bonds=False, #input to draw anyon bonds
+                    plot_diagonal_bonds = False, #input to draw diagonal bonds (explained above)
+                    otherbonds_list = None, #input to draw any list of bonds
+                    nonzeropairs = None, Cov = None #nonzeropairs is the list of bonds for which the covariance matrix is non-zero
+                    ):
     coords = model.get_coordinates()
     xx_bondlist, yy_bondlist, zz_bondlist = model.get_bonds()
     
     plt.figure(figsize=fig_size)
-    # Plot sites
-    plt.scatter(coords[:, 0], coords[:, 1], color='k', zorder=3)
 
-    # Plot bonds
+    # Plot sites:
+    
+    #Plot lattice sites
+    for i in range(model.Nsites):
+        if model.partition[i] == 'A':
+            plt.scatter(coords[i, 0], coords[i, 1], color='k', s=100, marker='o', zorder=3)  # full dot
+        else:
+            plt.scatter(coords[i, 0], coords[i, 1], facecolors='white', edgecolors='k', s=100, marker='o', zorder=3)  # empty dot
+    # plt.scatter(coords[:, 0], coords[:, 1], color='k', zorder=3)
+
+    #Shade a specific plaquette
+    if plaquette_site is not None:
+        plaquette_indices = model.get_plaquettecoordinates(plaquette_site)
+        # get their coordinates
+        plaquette_coords = coords[plaquette_indices, :]  # only x and y for 2D
+        polygon = Polygon(plaquette_coords, closed=True, facecolor='grey', alpha=0.3, edgecolor='none')
+        plt.gca().add_patch(polygon)
+
+
+    # Highlight a specific site if requested
+    if highlight_idxidy is not None:
+        idx, idy = highlight_idxidy
+        site_id = model.idxidy_to_id(idx, idy)
+        plt.scatter(coords[site_id, 0], coords[site_id, 1], color=highlight_color, s=300, zorder=5, label='highlighted site')
+
+    #Highlight a list of sites if requested
+    if sites is not None:
+        for site_id in sites:
+            plt.scatter(coords[site_id, 0], coords[site_id, 1], color=highlight_color, s=300, zorder=5, label='highlighted sites')
+
+    # Plot bonds:
+
+    #Plot xx,yy,zz bonds
     for bond in xx_bondlist:
         i, j = bond
         plt.plot([coords[i, 0], coords[j, 0]], [coords[i, 1], coords[j, 1]], 'r-', label='xx' if bond == xx_bondlist[0] else "", lw=2)
@@ -543,24 +608,25 @@ def plot_honeycomb(model,
             plt.plot([coords[i, 0], coords[j, 0]], [coords[i, 1], coords[j, 1]],
                      color='magenta', lw=5, label='anyon bond' if (i, j) == anyon_bonds[0] else "", zorder=4)
 
-    #highlight_idxidy = (px, py)
-    # Highlight a specific site if requested
-    if highlight_idxidy is not None:
-        idx, idy = highlight_idxidy
-        site_id = model.idxidy_to_id(idx, idy)
-        plt.scatter(coords[site_id, 0], coords[site_id, 1], color=highlight_color, s=300, zorder=5, label='highlighted site')
-
-    if indices is not None:
-        for site_id in indices:
-            plt.scatter(coords[site_id, 0], coords[site_id, 1], color=highlight_color, s=300, zorder=5, label='highlighted sites')
-
-
+    #plot diagonal bonds if requested
     if plot_diagonal_bonds:
         diag_bonds = model.get_diagonalbonds()
         for i, j in diag_bonds:
             plt.plot([coords[i, 0], coords[j, 0]], [coords[i, 1], coords[j, 1]],
-                     color='green', lw=2, label='diagonal bond' if (i, j) == diag_bonds[0] else "", zorder=4)        
+                     color='green', lw=2, label='diagonal bond' if (i, j) == diag_bonds[0] else "", zorder=4)    
+
+    #plot other bonds if requested
+    if otherbonds_list is not None:
+        for i, j in otherbonds_list:
+            plt.plot([coords[i, 0], coords[j, 0]], [coords[i, 1], coords[j, 1]],
+                     color='pink', lw=3, label='diagonal bond' if (i, j) == otherbonds_list[0] else "", zorder=4)
     
+    if nonzeropairs is not None and Cov is not None:
+        for i, j in nonzeropairs:
+            value = abs(Cov[i, j])
+            # Scale the linewidth for better visibility (adjust the multiplier as needed)
+            lw = 1 + 5 * value
+            plt.plot([coords[i, 0], coords[j, 0]],[coords[i, 1], coords[j, 1]],color='orange',lw=lw,zorder=5)
 
     plt.axis('equal')
     plt.axis('off')
@@ -568,11 +634,6 @@ def plot_honeycomb(model,
     by_label = dict(zip(labels, handles))
     plt.legend(by_label.values(), by_label.keys())
     plt.show()
-
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-import numpy as np
-import matplotlib.animation as animation
 
 
 def plot_honeycomb_cylinder(
@@ -582,10 +643,12 @@ def plot_honeycomb_cylinder(
     gif_filename="cylinder_rotation.gif",
     elev=20,
     azim=20,
+    dotsize = 100,
     fig_size=(10, 30),
     frames=90,
     highlight_idxidy=None,
-    indices=None,
+    sites=None,
+    plaquette_site=None, 
     highlight_color='orange',
     plot_anyon_bonds=False,
     plot_diagonal_bonds=False
@@ -598,7 +661,37 @@ def plot_honeycomb_cylinder(
 
     def draw(ax, elev, azim):
         ax.cla()
-        ax.scatter(coords[:, 0], coords[:, 1], coords[:, 2], color='k', s=10, zorder=3)
+        #Plot lattice sites:
+        for i in range(model.Nsites):
+            if model.partition[i] == 'A':
+                ax.scatter(coords[i, 0], coords[i, 1], coords[i, 2], color='k', s=dotsize, marker='o', zorder=3)  # full dot
+            else:
+                ax.scatter(coords[i, 0], coords[i, 1], coords[i,2], facecolors='white', edgecolors='k', s=dotsize, marker='o', zorder=3)  # empty dot
+
+        # ax.scatter(coords[:, 0], coords[:, 1], coords[:, 2], color='k', s=10, zorder=3)
+
+        #Shade a specific plaquette
+        if plaquette_site is not None:
+            plaquette_indices = model.get_plaquettecoordinates(plaquette_site)
+            # get their coordinates
+            verts = [coords[plaquette_indices]]  # shape (1, 6, 3)
+            poly = Poly3DCollection(verts, facecolor='grey', alpha=0.3, edgecolor='none')
+            ax.add_collection3d(poly)
+
+        # Highlight a specific site if requested
+        if highlight_idxidy is not None:
+            idx, idy = highlight_idxidy
+            site_id = model.idxidy_to_id(idx, idy)
+            ax.scatter(coords[site_id, 0], coords[site_id, 1], coords[site_id, 2],
+                       color=highlight_color, s=dotsize, zorder=5)
+
+        # Highlight a list of sites if requested
+        if sites is not None:
+            for site_id in sites:
+                ax.scatter(coords[site_id, 0], coords[site_id, 1], coords[site_id, 2],
+                           color=highlight_color, s=dotsize, zorder=5)
+
+        #Plot bonds:
         for bond, color in zip([xx_bondlist, yy_bondlist, zz_bondlist], ['r', 'b', 'g']):
             for i, j in bond:
                 ax.plot([coords[i, 0], coords[j, 0]],
@@ -613,17 +706,6 @@ def plot_honeycomb_cylinder(
                         [coords[i, 1], coords[j, 1]],
                         [coords[i, 2], coords[j, 2]],
                         color='magenta', lw=5, zorder=4)
-        # Highlight a specific site if requested
-        if highlight_idxidy is not None:
-            idx, idy = highlight_idxidy
-            site_id = model.idxidy_to_id(idx, idy)
-            ax.scatter(coords[site_id, 0], coords[site_id, 1], coords[site_id, 2],
-                       color=highlight_color, s=100, zorder=5)
-        # Highlight indices if requested
-        if indices is not None:
-            for site_id in indices:
-                ax.scatter(coords[site_id, 0], coords[site_id, 1], coords[site_id, 2],
-                           color=highlight_color, s=100, zorder=5)
         # Plot diagonal bonds if requested
         if plot_diagonal_bonds:
             diag_bonds = model.get_diagonalbonds()
