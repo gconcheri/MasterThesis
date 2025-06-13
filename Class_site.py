@@ -311,7 +311,7 @@ class SitesPBC(BaseSites):
         # PBC-specific initialization
         self.Nyrows = Npy + 1
         self.Nxsites = 2*Npx
-        self.Nsites = 2 * Npx * (Npy + 1) 
+        self.Nsites = 2 * Npx * (Npy + 1) #Nxsites*Nyrows
         self.ids = np.arange(self.Nsites)
         self.partition = self.get_partition()
         self.ids_A = [id for id in self.ids if self.partition[id] == 'A']
@@ -544,6 +544,27 @@ class SitesPBC(BaseSites):
     #                 y = - 1.5 * idy
     #                 if idx == 0:
 
+    def FTOperator(self):
+        # define Fourier transform
+        L = self.Npx
+        ks = 2*np.pi * np.arange(-L//2, L//2)/L
+        V = np.exp(-1j * ks[None, :] * np.arange(L)[:, None]) / np.sqrt(L)
+        V = np.kron(V, np.eye(2*self.Nyrows))
+        V = self.reordering_operator().T @ V # @ self.reordering_operator()
+        return V, ks 
+
+    #define also translation operator
+    
+    def reordering_operator(self):
+        Op = np.zeros((self.Nsites, self.Nsites))
+
+        for id in self.ids:
+            idx, idy = self.id_to_idxidy(id)
+            index = 2*idy + (idx//2)*2*self.Nyrows + (idx % 2)
+            Op[index,id] = 1.
+        return Op
+
+
 def plot_honeycomb(model, 
                     fig_size=(20,20), 
                     highlight_idxidy=None, sites=None, highlight_color='orange', #inputs to highlight sites
@@ -738,6 +759,6 @@ def plot_honeycomb_cylinder(
 #modell = site.SitesPBC(Npx=20, Npy=20)
 # plot_honeycomb_cylinder(modell, plot_static=True, make_gif=True)
 
-model = SitesOBC(Npx=4, Npy=4)
-anyonbonds = model.get_diagonalbonds()
-print(anyonbonds)
+model = SitesPBC(Npx=2, Npy=2)
+reop = model.reordering_operator()
+FT = model.FTOperator()
