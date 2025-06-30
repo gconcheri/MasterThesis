@@ -101,7 +101,7 @@ def u_config(model, type=None):
 def generate_Hamiltonian_Majorana(model, Jxx=1.0, Jyy=1.0, Jzz=1.0, type=None):
 
 	"""
-	H = i Σ_{i,j} J_{ij, alpha} u_ij (γ_i γ_j - γ_j γ_i)
+	H = i Σ_{i,j} J_{ij, alpha}/2 u_ij (γ_i γ_j - γ_j γ_i)
 
 	where γ_i are Majorana operators and J_{ij} are the coupling constants, where alpha = xx, yy, zz.
 
