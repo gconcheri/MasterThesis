@@ -1,11 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.patches import Polygon
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-
-
 
 class BaseSites:
     """
@@ -35,6 +28,56 @@ class BaseSites:
         self.Npy = Npy
         # shared initialization
 
+    def get_coordinates(self): #same for OBC and PBCx!
+        coords = []
+        a = 1  # lattice spacing
+        offset_y = 0.5
+        offset_x = np.sqrt(3) / 2.
+        for id in self.ids:
+            idx, idy = self.id_to_idxidy(id)
+            x = np.sqrt(3) * idx / 2.
+            y = - 1.5 * idy
+            # In un reticolo honeycomb, i siti sono su due sottoreticoli (A e B)
+            if idy != self.Nyrows - 1:  # not the last row
+                if self.partition[id] == 'B':  # Sublattice B
+                    y += offset_y
+            else:  # last row
+                if self.Nyrows % 2 == 0:
+                    if self.partition[id] == 'B':
+                        y += offset_y
+                else:
+                    x += offset_x
+                    if self.partition[id] == 'B':
+                        y += offset_y
+            coords.append((x, y))
+        return np.array(coords)
+
+    def get_partition(self): #it's the same for PBC and OBC
+        #tells you whether one site is part of sublattice A or B
+        partition = []
+        for id in self.ids:
+            idx, idy = self.id_to_idxidy(id)
+            if idy % 2 == 0 and idy != self.Nyrows - 1:  # even rows
+                if idx % 2 == 0:
+                    partition.append('A')
+                else:
+                    partition.append('B')
+            elif idy % 2 == 1 and idy != self.Nyrows - 1:  # odd rows
+                if idx % 2 == 0:
+                    partition.append('B')
+                else:
+                    partition.append('A')
+            elif idy == self.Nyrows - 1:  # last row
+                if idx % 2 == 0:
+                    partition.append('B')
+                else:
+                    partition.append('A')
+        partition = np.array(partition)
+        return partition
+
+    
+
+
 class SitesOBC(BaseSites):
     """ The lattice has open boundary conditions (OBC) along both x and y directions. """
 
@@ -57,21 +100,6 @@ class SitesOBC(BaseSites):
         else:
             idx = (id +1) % self.Nxsites_2
 
-            #probably other way to do this
-            # #convert id to idx, idy
-            # if id < self.Nxsites_1:
-            #     #first row
-            #     idx = id
-            #     idy = 0
-            # elif id < self.Nxsites_1 + self.Nxsites_2 * (self.Nsitesy - 2):
-            #     #bulk rows
-            #     idx = (id - self.Nxsites_1) % self.Nxsites_2
-            #     idy = (id - self.Nxsites_1) // self.Nxsites_2 + 1
-            # else:
-            #     #last row
-            #     idx = (id - self.Nxsites_1 - self.Nxsites_2 * (self.Nsitesy - 2)) % self.Nxsites_2
-            #     idy = self.Nsitesy - 1
-
         return idx, idy
     
     def idxidy_to_id(self, idx, idy):
@@ -81,29 +109,7 @@ class SitesOBC(BaseSites):
         else:
             return idx + self.Nxsites_1 + (idy-1) * self.Nxsites_2
     
-    def get_partition(self):
-        partition = []
-        #tells you whether one site is part of sublattice A or B
-        for id in self.ids:
-            idx, idy = self.id_to_idxidy(id)
-            if idy % 2 == 0 and idy != self.Nyrows - 1:  # even rows
-                if idx % 2 == 0:
-                    partition.append('A')
-                else:
-                    partition.append('B')
-            elif idy % 2 == 1 and idy != self.Nyrows - 1:  # odd rows
-                if idx % 2 == 0:
-                    partition.append('B')
-                else:
-                    partition.append('A')
-            elif idy == self.Nyrows - 1:  # last row
-                if idx % 2 == 0:
-                    partition.append('B')
-                else:
-                    partition.append('A')
-        partition = np.array(partition)
-        return partition
-    
+
     def get_Nsites(self):
         Nsites = 2*self.Nxsites_1
         if self.Npy > 2:
@@ -270,38 +276,9 @@ class SitesOBC(BaseSites):
             id_upright = self.idxidy_to_id(idx+ 1, idy-1)
         
         return [id, id_right, id_upright, id_up, id_upleft, id_left]
-            
-    # more efficient way to get coordinates
-
-    def get_coordinates(self):
-        coords = []
-        a = 1  # lattice spacing
-        offset_y = 0.5
-        offset_x = np.sqrt(3) / 2.
-        for id in self.ids:
-            idx, idy = self.id_to_idxidy(id)
-            print("id", id, "idx", idx, "idy", idy)
-            x = np.sqrt(3) * idx / 2.
-            y = - 1.5 * idy
-            # In un reticolo honeycomb, i siti sono su due sottoreticoli (A e B)
-            if idy != self.Nyrows - 1:  # not the last row
-                if self.partition[id] == 'B':  # Sublattice B
-                    y += offset_y
-            else:  # last row
-                if self.Nyrows % 2 == 0:
-                    if self.partition[id] == 'B':
-                        y += offset_y
-                else:
-                    x += offset_x
-                    if self.partition[id] == 'B':
-                        y += offset_y
-                        
-            print("x", x, "y", y)
-            coords.append((x, y))
-        return np.array(coords)
 
 
-class SitesPBC(BaseSites):
+class SitesPBCx(BaseSites):
 
     """ The lattice has periodic boundary conditions (PBC) along the x direction and open boundary conditions (OBC) along the y direction. """
     # PBC only along x direction: cylindrical geometry
@@ -311,7 +288,7 @@ class SitesPBC(BaseSites):
         # PBC-specific initialization
         self.Nyrows = Npy + 1
         self.Nxsites = 2*Npx
-        self.Nsites = 2 * Npx * (Npy + 1) #Nxsites*Nyrows
+        self.Nsites = self.Nxsites * self.Nyrows
         self.ids = np.arange(self.Nsites)
         self.partition = self.get_partition()
         self.ids_A = [id for id in self.ids if self.partition[id] == 'A']
@@ -327,28 +304,6 @@ class SitesPBC(BaseSites):
         #convert idx, idy to id
         return idx + idy * self.Nxsites
     
-    def get_partition(self): #it's the same for PBC and OBC
-        #tells you whether one site is part of sublattice A or B
-        partition = []
-        for id in self.ids:
-            idx, idy = self.id_to_idxidy(id)
-            if idy % 2 == 0 and idy != self.Nyrows - 1:  # even rows
-                if idx % 2 == 0:
-                    partition.append('A')
-                else:
-                    partition.append('B')
-            elif idy % 2 == 1 and idy != self.Nyrows - 1:  # odd rows
-                if idx % 2 == 0:
-                    partition.append('B')
-                else:
-                    partition.append('A')
-            elif idy == self.Nyrows - 1:  # last row
-                if idx % 2 == 0:
-                    partition.append('B')
-                else:
-                    partition.append('A')
-        partition = np.array(partition)
-        return partition
     
     def get_bonds(self):
 
@@ -365,33 +320,48 @@ class SitesPBC(BaseSites):
         yy_bondlist = []
         zz_bondlist = []
 
+        # for id in self.ids:
+        #     idx, idy = self.id_to_idxidy(id)
+        #     next_id = self.idxidy_to_id((idx+1) % self.Nxsites, idy)
+        #     if idy % 2 == 0 and idy != (self.Nyrows-1):
+        #         if idx % 2 == 0:
+        #             xx_bondlist.append([id, next_id])
+        #             if idy != (self.Nyrows-2):
+        #                 zz_bondlist.append([id, id+self.Nxsites])
+        #         else:
+        #             yy_bondlist.append([id, next_id])
+        #     elif idy % 2 == 1 and idy != (self.Nyrows-1):
+        #         if idx % 2 == 1:
+        #             xx_bondlist.append([id, next_id])
+        #             if idy != (self.Nyrows-2):
+        #                 zz_bondlist.append([id, id+self.Nxsites])
+        #         else:
+        #             yy_bondlist.append([id, next_id])
+        #     elif idy == (self.Nyrows - 1):
+        #         if idx % 2 == 1:
+        #             xx_bondlist.append([id, next_id])
+        #         else:
+        #             yy_bondlist.append([id, next_id])
+        #             if self.Npy % 2 == 0: # even number of plaquettes along y
+        #                 zz_bondlist.append([id-self.Nxsites+1, id])
+        #             else: # odd number of plaquettes along y
+        #                 zz_bondlist.append([id-self.Nxsites, id])
+
         for id in self.ids:
             idx, idy = self.id_to_idxidy(id)
             next_id = self.idxidy_to_id((idx+1) % self.Nxsites, idy)
-            if idy % 2 == 0 and idy != (self.Nyrows-1):
-                if idx % 2 == 0:
-                    xx_bondlist.append([id, next_id])
-                    if idy != (self.Nyrows-2):
-                        zz_bondlist.append([id, id+self.Nxsites])
-                else:
-                    yy_bondlist.append([id, next_id])
-            elif idy % 2 == 1 and idy != (self.Nyrows-1):
-                if idx % 2 == 1:
-                    xx_bondlist.append([id, next_id])
-                    if idy != (self.Nyrows-2):
-                        zz_bondlist.append([id, id+self.Nxsites])
-                else:
-                    yy_bondlist.append([id, next_id])
-            elif idy == (self.Nyrows - 1):
-                if idx % 2 == 1:
-                    xx_bondlist.append([id, next_id])
-                else:
-                    yy_bondlist.append([id, next_id])
-                    if self.Npy % 2 == 0: # even number of plaquettes along y
-                        zz_bondlist.append([id-self.Nxsites+1, id])
-                    else: # odd number of plaquettes along y
-                        zz_bondlist.append([id-self.Nxsites, id])      
-        
+            if id in self.ids_A:
+
+                if idy != (self.Nyrows - 1):
+                    id_down = self.idxidy_to_id(idx, idy+1)
+                    if idy == (self.Nyrows-2) and self.Npy % 2 == 0: # even number of plaquettes along y
+                        id_down = self.idxidy_to_id(idx-1, idy+1)
+                    zz_bondlist.append([id, id_down])
+
+                xx_bondlist.append([id, next_id])
+            else:
+                yy_bondlist.append([id, next_id])    
+                    
         yy_bondlist = [[b,a] for [a, b] in yy_bondlist]  # reverse the order of yy bonds to match the convention              
 
         return xx_bondlist, yy_bondlist, zz_bondlist
@@ -451,31 +421,6 @@ class SitesPBC(BaseSites):
             idx, _ = self.id_to_idxidy(id)
 
         return anyon_bondlist, idx_start, idy_start
-
-    
-    def get_coordinates(self):
-        coords = []
-        a = 1  # lattice spacing
-        offset_y = 0.5
-        offset_x = np.sqrt(3) / 2.
-        for id in self.ids:
-            idx, idy = self.id_to_idxidy(id)
-            x = np.sqrt(3) * idx / 2.
-            y = - 1.5 * idy
-            # In un reticolo honeycomb, i siti sono su due sottoreticoli (A e B)
-            if idy != self.Nyrows - 1:  # not the last row
-                if self.partition[id] == 'B':  # Sublattice B
-                    y += offset_y
-            else:  # last row
-                if self.Nyrows % 2 == 0:
-                    if self.partition[id] == 'B':
-                        y += offset_y
-                else:
-                    x += offset_x
-                    if self.partition[id] == 'B':
-                        y += offset_y
-            coords.append((x, y))
-        return np.array(coords)
     
     def get_plaquettecoordinates(self, id = None, idx = None, idy = None):
         """
@@ -532,23 +477,11 @@ class SitesPBC(BaseSites):
             coords.append((x, y, z))
         return np.array(coords)
 
-    # def get_coordinates(self):
-    #     coords = []
-    #     a = 1  # lattice spacing
-    #     for id in self.ids:
-    #         idx, idy = self.id_to_idxidy(id)
-    #         # In un reticolo honeycomb, i siti sono su due sottoreticoli (A e B)
-    #         if idy != self.Nyrows - 1:
-    #             if self.partition[id] == 'A':
-    #                 x = np.sqrt(3) * idx / 2.
-    #                 y = - 1.5 * idy
-    #                 if idx == 0:
-
     def FTOperator(self):
         # define Fourier transform
         L = self.Npx
         ks = 2*np.pi * np.arange(-L//2, L//2)/L
-        V = np.exp(-1j * ks[None, :] * np.arange(L)[:, None]) / np.sqrt(L)
+        V = np.exp(1j * ks[None, :] * np.arange(L)[:, None]) / np.sqrt(L)
         V = np.kron(V, np.eye(2*self.Nyrows))
         V = self.reordering_operator().T @ V # @ self.reordering_operator()
         return V, ks 
@@ -564,201 +497,94 @@ class SitesPBC(BaseSites):
             Op[index,id] = 1.
         return Op
 
+class SitesPBCxy(SitesPBCx):
+    """ The lattice has periodic boundary conditions (PBC) along both the x and y direction. 
+    With respect to PBCx we keep same id_to_idxidy, idxidy_to_id, get_partition and get_coordinates
 
-def plot_honeycomb(model, 
-                    fig_size=(20,20), 
-                    highlight_idxidy=None, sites=None, highlight_color='orange', #inputs to highlight sites
-                    plaquette_site= None, #input to shade a certain plaquette with lowest site= plaquette_site
-                    plot_anyon_bonds=False, #input to draw anyon bonds
-                    plot_diagonal_bonds = False, #input to draw diagonal bonds (explained above)
-                    otherbonds_list = None, #input to draw any list of bonds
-                    nonzeropairs = None, Cov = None #nonzeropairs is the list of bonds for which the covariance matrix is non-zero
-                    ):
-    coords = model.get_coordinates()
-    xx_bondlist, yy_bondlist, zz_bondlist = model.get_bonds()
-    
-    plt.figure(figsize=fig_size)
+    we change: get_bonds ...
 
-    # Plot sites:
-    
-    #Plot lattice sites
-    for i in range(model.Nsites):
-        if model.partition[i] == 'A':
-            plt.scatter(coords[i, 0], coords[i, 1], color='k', s=100, marker='o', zorder=3)  # full dot
-        else:
-            plt.scatter(coords[i, 0], coords[i, 1], facecolors='white', edgecolors='k', s=100, marker='o', zorder=3)  # empty dot
-    # plt.scatter(coords[:, 0], coords[:, 1], color='k', zorder=3)
+    CONDITION: Npy must be EVEN!
+    """
+    # PBC both along x and y direction: torus geometry
 
-    #Shade a specific plaquette
-    if plaquette_site is not None:
-        plaquette_indices = model.get_plaquettecoordinates(plaquette_site)
-        # get their coordinates
-        plaquette_coords = coords[plaquette_indices, :]  # only x and y for 2D
-        polygon = Polygon(plaquette_coords, closed=True, facecolor='grey', alpha=0.3, edgecolor='none')
-        plt.gca().add_patch(polygon)
+    def __init__(self, Npx, Npy):
+        super().__init__(Npx, Npy)
 
+        if self.Npy % 2 != 0:
+            raise ValueError("Number of vertical plaquettes Npy must be EVEN for SitesPBCxy!")
 
-    # Highlight a specific site if requested
-    if highlight_idxidy is not None:
-        idx, idy = highlight_idxidy
-        site_id = model.idxidy_to_id(idx, idy)
-        plt.scatter(coords[site_id, 0], coords[site_id, 1], color=highlight_color, s=300, zorder=5, label='highlighted site')
+        self.Nyrows = self.Npy #only different initialization w.r.t. PBCx case
+        self.Nxsites = 2*Npx
+        self.Nsites = self.Nxsites * self.Nyrows
+        self.ids = np.arange(self.Nsites)
+        self.partition = self.get_partition()
+        self.ids_A = [id for id in self.ids if self.partition[id] == 'A']
+        self.ids_B = [id for id in self.ids if self.partition[id] == 'B']
 
-    #Highlight a list of sites if requested
-    if sites is not None:
-        for site_id in sites:
-            plt.scatter(coords[site_id, 0], coords[site_id, 1], color=highlight_color, s=300, zorder=5, label='highlighted sites')
+    def get_bonds(self):
+        """
+        we are defining these bonds according to the plaquette term convention:
+        xx bonds: always from left to right
+        zz bonds: always from top to bottom
+        yy bonds: always from right to left
 
-    # Plot bonds:
+        Or in other words, the bonds always start from a site of sublattice A and end on a site of sublattice B.
+        """
 
-    #Plot xx,yy,zz bonds
-    for bond in xx_bondlist:
-        i, j = bond
-        plt.plot([coords[i, 0], coords[j, 0]], [coords[i, 1], coords[j, 1]], 'r-', label='xx' if bond == xx_bondlist[0] else "", lw=2)
-    for bond in yy_bondlist:
-        i, j = bond
-        plt.plot([coords[i, 0], coords[j, 0]], [coords[i, 1], coords[j, 1]], 'b-', label='yy' if bond == yy_bondlist[0] else "", lw=2)
-    for bond in zz_bondlist:
-        i, j = bond
-        plt.plot([coords[i, 0], coords[j, 0]], [coords[i, 1], coords[j, 1]], 'g-', label='zz' if bond == zz_bondlist[0] else "", lw=2)
+        xx_bondlist = []
+        yy_bondlist = []
+        zz_bondlist = []
 
-    # Plot anyon bonds if requested
-    if plot_anyon_bonds:
-        anyon_bonds, px, py = model.get_anyonbonds()
-        for i, j in anyon_bonds:
-            plt.plot([coords[i, 0], coords[j, 0]], [coords[i, 1], coords[j, 1]],
-                     color='magenta', lw=5, label='anyon bond' if (i, j) == anyon_bonds[0] else "", zorder=4)
+        # This time we use partition (sites labelled by A, B) to easily construct the bonds
+        #we don't have to impose additional conditions as in the PBCx case because here we always have even Npy plaquettes
 
-    #plot diagonal bonds if requested
-    if plot_diagonal_bonds:
-        diag_bonds = model.get_diagonalbonds()
-        for i, j in diag_bonds:
-            plt.plot([coords[i, 0], coords[j, 0]], [coords[i, 1], coords[j, 1]],
-                     color='green', lw=2, label='diagonal bond' if (i, j) == diag_bonds[0] else "", zorder=4)    
-
-    #plot other bonds if requested
-    if otherbonds_list is not None:
-        for i, j in otherbonds_list:
-            plt.plot([coords[i, 0], coords[j, 0]], [coords[i, 1], coords[j, 1]],
-                     color='pink', lw=3, label='diagonal bond' if (i, j) == otherbonds_list[0] else "", zorder=4)
-    
-    if nonzeropairs is not None and Cov is not None:
-        for i, j in nonzeropairs:
-            value = abs(Cov[i, j])
-            # Scale the linewidth for better visibility (adjust the multiplier as needed)
-            lw = 1 + 5 * value
-            plt.plot([coords[i, 0], coords[j, 0]],[coords[i, 1], coords[j, 1]],color='orange',lw=lw,zorder=5)
-
-    plt.axis('equal')
-    plt.axis('off')
-    handles, labels = plt.gca().get_legend_handles_labels()
-    by_label = dict(zip(labels, handles))
-    plt.legend(by_label.values(), by_label.keys())
-    plt.show()
-
-
-def plot_honeycomb_cylinder(
-    model,
-    plot_static=True,
-    make_gif=False,
-    gif_filename="cylinder_rotation.gif",
-    elev=20,
-    azim=20,
-    dotsize = 100,
-    fig_size=(10, 30),
-    frames=90,
-    highlight_idxidy=None,
-    sites=None,
-    plaquette_site=None, 
-    highlight_color='orange',
-    plot_anyon_bonds=False,
-    plot_diagonal_bonds=False
-):
-    coords = model.get_coordinates_cylindric()
-    xx_bondlist, yy_bondlist, zz_bondlist = model.get_bonds()
-
-    fig = plt.figure(figsize=fig_size)
-    ax = fig.add_subplot(111, projection='3d')
-
-    def draw(ax, elev, azim):
-        ax.cla()
-        #Plot lattice sites:
-        for i in range(model.Nsites):
-            if model.partition[i] == 'A':
-                ax.scatter(coords[i, 0], coords[i, 1], coords[i, 2], color='k', s=dotsize, marker='o', zorder=3)  # full dot
+        for id in self.ids: 
+            idx, idy = self.id_to_idxidy(id)
+            next_id = self.idxidy_to_id((idx+1) % self.Nxsites, idy)
+            if id in self.ids_A:
+                id_down = self.idxidy_to_id(idx, (idy+1)%self.Npy)
+                xx_bondlist.append([id, next_id])
+                zz_bondlist.append([id, id_down])
             else:
-                ax.scatter(coords[i, 0], coords[i, 1], coords[i,2], facecolors='white', edgecolors='k', s=dotsize, marker='o', zorder=3)  # empty dot
+                yy_bondlist.append([id, next_id])
 
-        # ax.scatter(coords[:, 0], coords[:, 1], coords[:, 2], color='k', s=10, zorder=3)
+        yy_bondlist = [[b,a] for [a, b] in yy_bondlist]  # reverse the order of yy bonds to match the convention              
 
-        #Shade a specific plaquette
-        if plaquette_site is not None:
-            plaquette_indices = model.get_plaquettecoordinates(plaquette_site)
-            # get their coordinates
-            verts = [coords[plaquette_indices]]  # shape (1, 6, 3)
-            poly = Poly3DCollection(verts, facecolor='grey', alpha=0.3, edgecolor='none')
-            ax.add_collection3d(poly)
+        return xx_bondlist, yy_bondlist, zz_bondlist
 
-        # Highlight a specific site if requested
-        if highlight_idxidy is not None:
-            idx, idy = highlight_idxidy
-            site_id = model.idxidy_to_id(idx, idy)
-            ax.scatter(coords[site_id, 0], coords[site_id, 1], coords[site_id, 2],
-                       color=highlight_color, s=dotsize, zorder=5)
 
-        # Highlight a list of sites if requested
-        if sites is not None:
-            for site_id in sites:
-                ax.scatter(coords[site_id, 0], coords[site_id, 1], coords[site_id, 2],
-                           color=highlight_color, s=dotsize, zorder=5)
+    def FTOperator(self):
+        # define Fourier transform
+        L1 = self.Npx
+        L2 = self.Npy
 
-        #Plot bonds:
-        for bond, color in zip([xx_bondlist, yy_bondlist, zz_bondlist], ['r', 'b', 'g']):
-            for i, j in bond:
-                ax.plot([coords[i, 0], coords[j, 0]],
-                        [coords[i, 1], coords[j, 1]],
-                        [coords[i, 2], coords[j, 2]],
-                        color=color, lw=2)
-        # Plot anyon bonds if requested
-        if plot_anyon_bonds:
-            anyon_bonds, px, py = model.get_anyonbonds()
-            for i, j in anyon_bonds:
-                ax.plot([coords[i, 0], coords[j, 0]],
-                        [coords[i, 1], coords[j, 1]],
-                        [coords[i, 2], coords[j, 2]],
-                        color='magenta', lw=5, zorder=4)
-        # Plot diagonal bonds if requested
-        if plot_diagonal_bonds:
-            diag_bonds = model.get_diagonalbonds()
-            for i, j in diag_bonds:
-                ax.plot([coords[i, 0], coords[j, 0]],
-                        [coords[i, 1], coords[j, 1]],
-                        [coords[i, 2], coords[j, 2]],
-                        color='green', lw=2, zorder=4)
-        ax.set_axis_off()
-        ax.view_init(elev=elev, azim=azim)
-        # Imposta limiti assi per evitare "schiacciamento"
-        ax.set_box_aspect([1,1,1])  # assi proporzionati
-        ax.set_xlim(np.min(coords[:,0]), np.max(coords[:,0]))
-        ax.set_ylim(np.min(coords[:,1]), np.max(coords[:,1]))
-        ax.set_zlim(np.min(coords[:,2]), np.max(coords[:,2]))
+        ks1 = 2*np.pi * np.arange(-L1//2, L1//2)/L1
+        ks2 = 2*np.pi * np.arange(-L2//2, L2//2)/L2
 
-    if plot_static:
-        draw(ax, elev, azim)
-        plt.show()
+        V1 = np.exp(1j * ks1[None, :] * np.arange(L1)[:, None]) / np.sqrt(L1)
+        V2 = np.exp(1j * ks2[None, :] * np.arange(L2)[:, None]) / np.sqrt(L2)
 
-    if make_gif:
-        def update(angle):
-            draw(ax, angle, angle)
-        ani = animation.FuncAnimation(
-            fig, update, frames=np.linspace(0, 360, frames), interval=50
-        )
-        ani.save(gif_filename, writer='pillow') # or ani.save(filename, writer='ffmpeg') with filename = "ciao.mp4"
+        V = np.kron(V2, V1)
+        V = np.kron(V, np.eye(2))
+
+        V = self.reordering_operator().T @ V # @ self.reordering_operator()
+
+        return V, ks1, ks2
+
+    def reordering_operator(self):
+        Op = np.zeros((self.Nsites, self.Nsites))
+
+        for id in self.ids:
+            idx, idy = self.id_to_idxidy(id)
+            id_new = self.idxidy_to_id((idx+idy)%self.Nxsites, idy) 
+            Op[id_new,id] = 1.
+        return Op
+
 
 # Example usage:
 #modell = site.SitesPBC(Npx=20, Npy=20)
 # plot_honeycomb_cylinder(modell, plot_static=True, make_gif=True)
 
-model = SitesPBC(Npx=2, Npy=2)
+model = SitesPBCx(Npx=2, Npy=2)
 reop = model.reordering_operator()
 FT = model.FTOperator()
