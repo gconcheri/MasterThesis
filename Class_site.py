@@ -277,6 +277,8 @@ class SitesOBC(BaseSites):
         
         return [id, id_right, id_upright, id_up, id_upleft, id_left]
 
+# class SitesProtBonds(BaseSites):
+
 
 class SitesPBCx(BaseSites):
 
@@ -579,6 +581,42 @@ class SitesPBCxy(SitesPBCx):
             id_new = self.idxidy_to_id((idx+idy)%self.Nxsites, idy) 
             Op[id_new,id] = 1.
         return Op
+    
+    def get_coordinates_torus(self, r_0 = 1, r_tilde = 1, z_0 = 0):
+        """
+        Returns 3D coordinates (x, y, z) for plotting on a cylinder of radius R.
+        x: wraps around the cylinder (angle)
+        y: height along the cylinder
+        """
+        coords = [] 
+        offset_t = 2 * np.pi / (3 * self.Nyrows)
+        offset_theta = 2 * np.pi / self.Nxsites
+
+        for id in self.ids:
+            idx, idy = self.id_to_idxidy(id)
+            # Map idx to angle theta
+            theta = 2 * np.pi * idx / self.Nxsites
+            # Map idy to height (z)
+            t = - 2 * np.pi * idy / self.Nyrows
+            # Standard honeycomb offset for sublattices
+
+            if idy != self.Nyrows - 1:  # not the last row
+                if self.partition[id] == 'B':  # Sublattice B
+                    t += offset_t
+            else:
+                if self.Nyrows % 2 == 0:
+                    if self.partition[id] == 'B':
+                        t += offset_t
+                else:
+                    theta += offset_theta
+                    if self.partition[id] == 'B':
+                        t += offset_t
+            # Convert to Cartesian coordinates
+            x = (r_0 + r_tilde*np.cos(t)) * np.cos(theta)
+            y = (r_0 + r_tilde*np.cos(t)) * np.sin(theta)
+            z = z_0 + r_tilde*np.sin(t)
+            coords.append((x, y, z))
+        return np.array(coords)
 
 
 # Example usage:

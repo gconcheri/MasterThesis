@@ -128,21 +128,23 @@ def generate_Hamiltonian_Majorana(model, Jxx=1.0, Jyy=1.0, Jzz=1.0, type=None):
 		print(f"Adding xx bonds with Jxx = {Jxx}")
 		for i, j in xx_bondlist:
 			H[i,j] += 1j * Jxx/2.
-			H[j,i] += - 1j * Jxx/2.
+			# H[j,i] += - 1j * Jxx/2.
 
 	# Add yy bonds
 	if Jyy != 0:
 		print(f"Adding yy bonds with Jyy = {Jyy}")
 		for i, j in yy_bondlist:
 			H[i,j] += 1j * Jyy/2.
-			H[j,i] += - 1j * Jyy/2.
+			# H[j,i] += - 1j * Jyy/2.
 
 	# Add zz bonds
 	if Jzz != 0:
 		print(f"Adding zz bonds with Jzz = {Jzz}")
 		for i, j in zz_bondlist:
 			H[i,j] += 1j * Jzz/2.
-			H[j,i] += - 1j * Jzz/2.
+			# H[j,i] += - 1j * Jzz/2.
+
+	H = H - H.T #should be equivalent to doing commented operations: should save time but at the moment doesn't seem like it
 
 	if type == "Anyon":
 		print('type = Anyon!')

@@ -107,7 +107,8 @@ def plot_honeycomb_cylinder(
     azim=20,
     dotsize = 100,
     fig_size=(10, 30),
-    frames=90,
+    frames=90, #fluidity of gif
+    interval=50, # time interval between frames
     highlight_idxidy=None,
     sites=None,
     plaquette_site=None, 
@@ -192,6 +193,107 @@ def plot_honeycomb_cylinder(
         def update(angle):
             draw(ax, angle, angle)
         ani = animation.FuncAnimation(
-            fig, update, frames=np.linspace(0, 360, frames), interval=50
+            fig, update, frames=np.linspace(0, 360, frames), interval=interval
+        )
+        ani.save(gif_filename, writer='pillow') # or ani.save(filename, writer='ffmpeg') with filename = "ciao.mp4"
+
+def plot_honeycomb_torus(
+    model,
+    plot_static=True,
+    make_gif=False,
+    gif_filename="cylinder_rotation.gif",
+    elev=20,
+    azim=20,
+    dotsize = 100,
+    fig_size=(10, 30),
+    frames=90, #fluidity of gif
+    interval=50, # time interval between frames
+    highlight_idxidy=None,
+    sites=None,
+    plaquette_site=None, 
+    highlight_color='orange',
+    plot_anyon_bonds=False,
+    plot_diagonal_bonds=False,
+    r_tilde = 0.5,
+    r_0 = 2
+):
+    coords = model.get_coordinates_torus(r_tilde = r_tilde, r_0 = r_0)
+    xx_bondlist, yy_bondlist, zz_bondlist = model.get_bonds()
+
+    fig = plt.figure(figsize=fig_size)
+    ax = fig.add_subplot(111, projection='3d')
+
+    def draw(ax, elev, azim):
+        ax.cla()
+        #Plot lattice sites:
+        for i in range(model.Nsites):
+            if model.partition[i] == 'A':
+                ax.scatter(coords[i, 0], coords[i, 1], coords[i, 2], color='k', s=dotsize, marker='o', zorder=3)  # full dot
+            else:
+                ax.scatter(coords[i, 0], coords[i, 1], coords[i,2], facecolors='white', edgecolors='k', s=dotsize, marker='o', zorder=3)  # empty dot
+
+        # ax.scatter(coords[:, 0], coords[:, 1], coords[:, 2], color='k', s=10, zorder=3)
+
+        #Shade a specific plaquette
+        if plaquette_site is not None:
+            plaquette_indices = model.get_plaquettecoordinates(plaquette_site)
+            # get their coordinates
+            verts = [coords[plaquette_indices]]  # shape (1, 6, 3)
+            poly = Poly3DCollection(verts, facecolor='grey', alpha=0.3, edgecolor='none')
+            ax.add_collection3d(poly)
+
+        # Highlight a specific site if requested
+        if highlight_idxidy is not None:
+            idx, idy = highlight_idxidy
+            site_id = model.idxidy_to_id(idx, idy)
+            ax.scatter(coords[site_id, 0], coords[site_id, 1], coords[site_id, 2],
+                       color=highlight_color, s=dotsize, zorder=5)
+
+        # Highlight a list of sites if requested
+        if sites is not None:
+            for site_id in sites:
+                ax.scatter(coords[site_id, 0], coords[site_id, 1], coords[site_id, 2],
+                           color=highlight_color, s=dotsize, zorder=5)
+
+        #Plot bonds:
+        for bond, color in zip([xx_bondlist, yy_bondlist, zz_bondlist], ['r', 'b', 'g']):
+            for i, j in bond:
+                ax.plot([coords[i, 0], coords[j, 0]],
+                        [coords[i, 1], coords[j, 1]],
+                        [coords[i, 2], coords[j, 2]],
+                        color=color, lw=2)
+        # Plot anyon bonds if requested
+        if plot_anyon_bonds:
+            anyon_bonds, px, py = model.get_anyonbonds()
+            for i, j in anyon_bonds:
+                ax.plot([coords[i, 0], coords[j, 0]],
+                        [coords[i, 1], coords[j, 1]],
+                        [coords[i, 2], coords[j, 2]],
+                        color='magenta', lw=5, zorder=4)
+        # Plot diagonal bonds if requested
+        if plot_diagonal_bonds:
+            diag_bonds = model.get_diagonalbonds()
+            for i, j in diag_bonds:
+                ax.plot([coords[i, 0], coords[j, 0]],
+                        [coords[i, 1], coords[j, 1]],
+                        [coords[i, 2], coords[j, 2]],
+                        color='green', lw=2, zorder=4)
+        ax.set_axis_off()
+        ax.view_init(elev=elev, azim=azim)
+        # Imposta limiti assi per evitare "schiacciamento"
+        ax.set_box_aspect([1,1,1])  # assi proporzionati
+        ax.set_xlim(-(r_0+r_tilde), r_0+r_tilde)
+        ax.set_ylim(-(r_0+r_tilde), r_0+r_tilde)
+        ax.set_zlim(-(r_0+r_tilde), r_0+r_tilde)
+
+    if plot_static:
+        draw(ax, elev, azim)
+        plt.show()
+
+    if make_gif:
+        def update(angle):
+            draw(ax, elev, angle)
+        ani = animation.FuncAnimation(
+            fig, update, frames=np.linspace(0, 360, frames), interval=interval
         )
         ani.save(gif_filename, writer='pillow') # or ani.save(filename, writer='ffmpeg') with filename = "ciao.mp4"
