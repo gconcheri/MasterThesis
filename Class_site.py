@@ -81,7 +81,7 @@ class BaseSites:
 class SitesOBC(BaseSites):
     """ The lattice has open boundary conditions (OBC) along both x and y directions. """
 
-    def __init__(self, Npx, Npy):
+    def __init__(self, Npx, Npy, protruding=True):
         super().__init__(Npx, Npy)
         # OBC-specific initialization
         self.Nyrows = self.Npy + 1
@@ -112,7 +112,7 @@ class SitesOBC(BaseSites):
 
     def get_Nsites(self):
         Nsites = 2*self.Nxsites_1
-        if self.Npy > 2:
+        if self.Npy > 1:
             Nsites = (self.Nyrows - 2)*self.Nxsites_2 + Nsites
         return Nsites
     
@@ -181,15 +181,17 @@ class SitesOBC(BaseSites):
                         xx_bondlist.append([id, id+1])
                     else:
                         yy_bondlist.append([id, id+1])
-                        if self.Npy % 2 == 0: # even number of plaquettes along y
-                            zz_bondlist.append([id-self.Nxsites_1, id])
-                        else: # odd number of plaquettes along y
-                            zz_bondlist.append([id-self.Nxsites_2, id])
+                        if self.Npy != 1:
+                            if self.Npy % 2 == 0: # even number of plaquettes along y
+                                zz_bondlist.append([id-self.Nxsites_1, id])
+                            else: # odd number of plaquettes along y
+                                zz_bondlist.append([id-self.Nxsites_2, id])
                 else:
-                        if self.Npy % 2 == 0: # even number of plaquettes along y
-                            zz_bondlist.append([id-self.Nxsites_1, id])
-                        else: # odd number of plaquettes along y
-                            zz_bondlist.append([id-self.Nxsites_2, id])
+                        if self.Npy != 1:
+                            if self.Npy % 2 == 0: # even number of plaquettes along y
+                                zz_bondlist.append([id-self.Nxsites_1, id])
+                            else: # odd number of plaquettes along y
+                                zz_bondlist.append([id-self.Nxsites_2, id])
     
         
         yy_bondlist = [[b,a] for [a, b] in yy_bondlist]  # reverse the order of yy bonds to match the convention
