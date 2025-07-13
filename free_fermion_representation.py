@@ -3,6 +3,8 @@ from scipy import sparse
 from scipy.linalg import expm
 from pfapack import pfaffian as pf
 
+#for now, Omega, Corr don't work as they should!
+
 
 class FermionicGaussianRepresentation:
 
@@ -23,67 +25,106 @@ class FermionicGaussianRepresentation:
 
 		# Omega_inv corresponds to the Omega in the paper, however it is not exactly the same.
 		#i.e. Omega_inv here creates complex fermions pairing adjacent Majorana operators gamma_i gamma_i+1!
-
 		self.Cov = build_covariance_matrix(model, diagonalcov)
-		self.Corr = self.cov_to_corr()
+		self.Cov_0 = self.Cov.copy()
+		self.Cov_e = self.Cov.copy()
+		# self.Corr = self.cov_to_corr()
+		self.h0_x = generate_Hamiltonian_Majorana(model, Jxx=1.0, Jyy=0.0, Jzz=0.0)*(1/1j)
+		self.h0_y = generate_Hamiltonian_Majorana(model, Jxx=0.0, Jyy=1.0, Jzz=0.0)*(1/1j)
+		self.h0_z = generate_Hamiltonian_Majorana(model, Jxx=0.0, Jyy=0.0, Jzz=1.0)*(1/1j)
+
+		self.he_x = generate_Hamiltonian_Majorana(model, Jxx=1.0, Jyy=0.0, Jzz=0.0, type='Anyon')*(1/1j)
+		self.he_y = generate_Hamiltonian_Majorana(model, Jxx=0.0, Jyy=1.0, Jzz=0.0, type='Anyon')*(1/1j)
+		self.he_z = generate_Hamiltonian_Majorana(model, Jxx=0.0, Jyy=0.0, Jzz=1.0, type='Anyon')*(1/1j)
 
 
+	""" These commented lines for now don't work and we don't need them!"""
+	#%%
+	# def Hamiltonian_dirac(self, Hmaj):
+	# 	'''
+	# 	Calculates the Dirac Hamiltonian for the Majorana Hamiltonian Hmaj.
+	# 	Note: H = i (gamma1 ... gamma2n) Hmaj (gamma1 ... gamma2n)^T 
 
+	# 	Parameters:
+	# 	----------
+	# 	Hmaj: array_like
+	# 		2n x 2n real antisymmetric matrix.
 
-	def Hamiltonian_dirac(self, Hmaj):
-		'''
-		Calculates the Dirac Hamiltonian for the Majorana Hamiltonian Hmaj.
-		Note: H = i (gamma1 ... gamma2n) Hmaj (gamma1 ... gamma2n)^T 
-
-		Parameters:
-		----------
-		Hmaj: array_like
-			2n x 2n real antisymmetric matrix.
-
-		Returns:
-		--------
-		Hdirac: array_like
-			Hamiltonian in terms of Dirac operators.
-			H = (c1 ... cn c1^dagger ... cn^dagger) Hdirac (c1^dagger ... cn^dagger c1 ... cn)^T
-		'''
-		Hdirac = 1j * self._Omega_inv.T.conj() @ Hmaj @ self._Omega_inv
-		return Hdirac
-
-	def corr_to_cov(self):
-		# return np.real_if_close(1j * (np.eye(2 * self.n) - self._Omega_inv @ self.Corr @ self._Omega_inv.T.conj()))
-		return np.real_if_close(1j * (0.5*np.eye(2 * self.n) - self._Omega_inv @ self.Corr @ self._Omega_inv.T.conj()))
+	# 	Returns:
+	# 	--------
+	# 	Hdirac: array_like
+	# 		Hamiltonian in terms of Dirac operators.
+	# 		H = (c1 ... cn c1^dagger ... cn^dagger) Hdirac (c1^dagger ... cn^dagger c1 ... cn)^T
+	# 	'''
+	# 	Hdirac = 1j * self._Omega_inv.T.conj() @ Hmaj @ self._Omega_inv
+	# 	return Hdirac
 	
 
-	def cov_to_corr(self):
-		# return self._Omega @ (1j * self.Cov + np.eye(2 * self.n)) @ self._Omega.T.conj()
-		return - self._Omega @ (1j * self.Cov + 0.5* np.eye(2 * self.n)) @ self._Omega.T.conj()
-
+	# def corr_to_cov(self):
+	# 	# return np.real_if_close(1j * (np.eye(2 * self.n) - self._Omega_inv @ self.Corr @ self._Omega_inv.T.conj()))
+	# 	return np.real_if_close(1j * (0.5*np.eye(2 * self.n) - self._Omega_inv @ self.Corr @ self._Omega_inv.T.conj()))
 	
-	def update_corr_matrix(self, H, t):
-		self.Corr = expm(1j * 2 * H * t) @ self.Corr @ expm(- 1j * 2 * H * t)
+
+	# def cov_to_corr(self):
+	# 	# return self._Omega @ (1j * self.Cov + np.eye(2 * self.n)) @ self._Omega.T.conj()
+	# 	return - self._Omega @ (1j * self.Cov + 0.5* np.eye(2 * self.n)) @ self._Omega.T.conj()
 	
-	# def expectation_value(self, model, site_list):
-	# 	"""
-	# 	Using Wick's theorem, we calculate <gamma_i ... gamma_j> = Pf(cov_{i,...,j})
-	# 	where cov_{i,...,j} is the covariance matrix bla bla bla
+	# def update_corr_matrix(self, H, t):
+	# 	self.Corr = expm(1j * 2 * H * t) @ self.Corr @ expm(- 1j * 2 * H * t)
 
-	# 	Important: i<...<j
-	# 	"""
+	#%%	
 
-	def update_cov_matrix(self, R):
-		self.Cov = R @self.Cov@ R.T
+	def update_cov_e_matrix(self, R):
+		self.Cov_e = R @self.Cov_e@ R.T
+
+	def update_cov_0_matrix(self, R):
+		self.Cov_0 = R @self.Cov_0 @ R.T
+	
+	def reset_cov_0_matrix(self):
+		self.Cov_0 = self.Cov.copy()
+	
+	def reset_cov_e_matrix(self):
+		self.Cov_e = self.Cov.copy()
 
 	def expectation_val_Majorana_string(self, majoranas):
 		"""
+		Using Wick's theorem, we calculate <gamma_i ... gamma_j> = Pf(cov_{i,...,j})
+		where cov_{i,...,j} is the covariance matrix bla bla bla
+		Important: i<...<j
+
 		majoranas is a list of 0 and 1 of length 2*n, where 1 indicates that that majorana is included.
+
 		"""
 		
 		majoranas_bool = majoranas.astype(bool)
-		
-		Cov_reduced = self.Cov[majoranas_bool][:, majoranas_bool]
-	
-		return pf.pfaffian(Cov_reduced) # is the pfaffian directly the expectation value of the string?
 
+		Cov_0_reduced = self.Cov_0[majoranas_bool][:, majoranas_bool]		
+		Cov_e_reduced = self.Cov_e[majoranas_bool][:, majoranas_bool]
+	
+		return pf.pfaffian(Cov_0_reduced), pf.pfaffian(Cov_e_reduced)  # is the pfaffian directly the expectation value of the string?
+	
+	def order_parameter(self, majoranas):
+		"""
+		given loop op. = O
+		We calculate Order parameter = <psi_e|O|psi_e>/<psi_0|O|psi_0> 
+		where the two expectation values are calculates with Wick's theorem with previously defined function
+		loop operator written as string of majoranas gamma_i ... gamma_j
+
+		majoranas is a list of 0 and 1 of length 2*n, where 1 indicates that that majorana is included.
+
+		"""
+
+		exp_value_0, exp_value_e = self.expectation_val_Majorana_string(majoranas)
+		return exp_value_e/exp_value_0
+	
+		
+def floquet_operator(hx, hy, hz, T):
+	t = T*np.pi/4.
+	Rx = expm(hx*t*4)
+	Ry = expm(hy*t*4)
+	Rz = expm(hz*t*4)
+	R = Rz @ Ry @ Rx 
+	return Rx, Ry, Rz, R
 
 
 def u_config(model, type=None):
@@ -125,21 +166,18 @@ def generate_Hamiltonian_Majorana(model, Jxx=1.0, Jyy=1.0, Jzz=1.0, type=None):
 
 	# Add xx bonds
 	if Jxx != 0:
-		print(f"Adding xx bonds with Jxx = {Jxx}")
 		for i, j in xx_bondlist:
 			H[i,j] += 1j * Jxx/2.
 			# H[j,i] += - 1j * Jxx/2.
 
 	# Add yy bonds
 	if Jyy != 0:
-		print(f"Adding yy bonds with Jyy = {Jyy}")
 		for i, j in yy_bondlist:
 			H[i,j] += 1j * Jyy/2.
 			# H[j,i] += - 1j * Jyy/2.
 
 	# Add zz bonds
 	if Jzz != 0:
-		print(f"Adding zz bonds with Jzz = {Jzz}")
 		for i, j in zz_bondlist:
 			H[i,j] += 1j * Jzz/2.
 			# H[j,i] += - 1j * Jzz/2.
@@ -147,7 +185,6 @@ def generate_Hamiltonian_Majorana(model, Jxx=1.0, Jyy=1.0, Jzz=1.0, type=None):
 	H = H - H.T #should be equivalent to doing commented operations: should save time but at the moment doesn't seem like it
 
 	if type == "Anyon":
-		print('type = Anyon!')
 		u = u_config(model, type = 'Anyon')
 		H = H * u
 			
@@ -180,8 +217,8 @@ def build_covariance_matrix(model, diagonalcov = True):
 
 	return Cov
 
-
-
+"""
+qui prima o poi definirò funzione per creare e_loop_operator dipendente da model! (o meglio definirlo dentro la classe?)"""
 
 if __name__ == '__main__':
 	n = 16
