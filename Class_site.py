@@ -75,7 +75,6 @@ class BaseSites:
         partition = np.array(partition)
         return partition
 
-    
 
 
 class SitesOBC(BaseSites):
@@ -108,7 +107,6 @@ class SitesOBC(BaseSites):
             return idx + self.Nxsites_1*idy
         else:
             return idx + self.Nxsites_1 + (idy-1) * self.Nxsites_2
-    
 
     def get_Nsites(self):
         Nsites = 2*self.Nxsites_1
@@ -268,7 +266,7 @@ class SitesOBC(BaseSites):
             idx, idy = self.id_to_idxidy(id)
         id_right = self.idxidy_to_id(idx+1, idy)
         id_left = self.idxidy_to_id(idx-1, idy)
-        if idy == self.Nyrows-1 and self.Npy % 2==0:
+        if idy == self.Nyrows-1 and self.Npy % 2 == 0:
             id_up = self.idxidy_to_id(idx+1, idy-1)
             id_upleft = self.idxidy_to_id(idx, idy-1)
             id_upright = self.idxidy_to_id(idx+2, idy-1)
@@ -278,8 +276,105 @@ class SitesOBC(BaseSites):
             id_upright = self.idxidy_to_id(idx+ 1, idy-1)
         
         return [id, id_right, id_upright, id_up, id_upleft, id_left]
+    
+    def get_loop(self):
+        """
+        Returns:
+        1. list of indeces corresponding to sites of c Majorana operators corresponding to certain loop
+        2. list of xx, yy, zz bonds of links of ujk present in loop
+        3. the sign in front of majorana string when calculating the expectation value with FGS Wick Theorem 
 
-# class SitesProtBonds(BaseSites):
+        I have to find a way to write for now largest parallelogram loop, by considering geometry of honeycomb lattice and then 
+        based on that I simply take all indeces in bulk rows except for idx = 0 and idx = self.Nxsites, or something like that
+
+        """
+        if self.Npy < 2 or self.Npx <2:
+            return AssertionError("Npx and Npy must both be greater than 1")
+        
+        M = self.Npx - (self.Npy+1)//2 #in this way if Npy even: I get Npy/2, if odd I get (Npy+1)/2
+
+        # xx_bonds, yy_bonds, zz_bonds = self.get_bonds()
+        indeces_list = []
+        links_list = []
+
+        prefactor = self.get_prefactor()
+    
+        for y in range(1,self.Nyrows):
+            x_0 = y
+            if y == self.Nyrows-1 and self.Npy % 2 == 0:
+                x_0 = y-1
+
+            for x in range(M):
+                id = self.idxidy_to_id(x_0+2*x,y)
+                id_n = id+1
+                id_nn = id+2
+                id_up = self.idxidy_to_id(x_0+2*x+1, y-1)
+
+                if y == 1:
+                    indeces_list.append(id)
+                    links_list.append([id, id_n]) #xbonds
+                    links_list.append([id_nn, id_n]) #ybonds
+
+                elif y>1 and y<self.Nyrows-1: 
+                    indeces_list.append(id)
+                    indeces_list.append(id_n)
+                    links_list.append([id, id_n]) #xbonds
+                    links_list.append([id_nn, id_n]) #ybonds
+                    links_list.append([id_up,id_n]) #zbonds
+                
+                else:
+                    if self.Npy % 2 == 0:
+                        id_up = self.idxidy_to_id(x_0+2*x+1, y-1)
+
+                    indeces_list.append(id_n)
+                    links_list.append([id_up,id_n]) #zbonds
+        
+        return prefactor, indeces_list, links_list
+                    
+
+    def get_prefactor(self):
+        M = self.Npx - (self.Npy+1)//2 #in this way if Npy even: I get Npy/2, if odd I get (Npy+1)/2
+
+        A = 0
+        for i in range(M):
+            A += i 
+        B = M**2
+        C = (self.Nyrows-2)*B
+        
+        Np = (M+1)*(self.Npy-1) #number of total highlighted plaquettes, i.e. total elementary loops required to form big loop
+
+        D = 0
+        if Np%4 == 0:
+            D = 1
+        elif Np % 4 == 1:
+            D = 1j
+        elif Np % 4 == 2:
+            D = -1
+        else: 
+            D = -1j
+        
+        return D*(-1)**(A+C)
+
+            
+
+
+
+# class SitesProtBonds(SitesOBC):
+#     """ The lattice has open boundary conditions (OBC) along both x and y directions, with protruding bonds. """
+
+#     def __init__(self, Npx, Npy):
+#         super().__init__(Npx, Npy)
+#         # Protruding bonds specific initialization
+#         self.Nxsites_0 = 2*self.Npx  # number of sites in the first and last row
+#         # self.Nxsites_1 = number of sites in the second and second-last row
+#         # self.Nxsites_2 = number of sites in bulk rows
+#         self.Nyrows = self.Nyrows + 3  # number of rows in the lattice
+#         self.Nsites = self.get_Nsites()
+#         self.ids = np.arange(self.Nsites)
+#         self.partition = self.get_partition()
+#         self.ids_A = [id for id in self.ids if self.partition[id] == 'A']
+#         self.ids_B = [id for id in self.ids if self.partition[id] == 'B']
+
 
 
 class SitesPBCx(BaseSites):
