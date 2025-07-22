@@ -264,6 +264,8 @@ class SitesOBC(BaseSites):
         and returns the list of id coordinates of the sites of that plaquette"""
         if id is not None:
             idx, idy = self.id_to_idxidy(id)
+        else: 
+            id = self.idxidy_to_id(idx,idy)
         id_right = self.idxidy_to_id(idx+1, idy)
         id_left = self.idxidy_to_id(idx-1, idy)
         if idy == self.Nyrows-1 and self.Npy % 2 == 0:
@@ -276,6 +278,7 @@ class SitesOBC(BaseSites):
             id_upright = self.idxidy_to_id(idx+ 1, idy-1)
         
         return [id, id_right, id_upright, id_up, id_upleft, id_left]
+
     
     def get_loop(self):
         """
@@ -324,25 +327,34 @@ class SitesOBC(BaseSites):
                 
                 else:
                     if self.Npy % 2 == 0:
-                        id_up = self.idxidy_to_id(x_0+2*x+1, y-1)
+                        id_up = self.idxidy_to_id(x_0+2*x+2, y-1)
 
                     indeces_list.append(id_n)
                     links_list.append([id_up,id_n]) #zbonds
+
+        final_x = self.id_to_idxidy(self.ids[-2])[0]
+
+        plaquette_coords = [[1,1], [2*M+1,1], [final_x, self.Npy], [final_x-2*M, self.Npy]]
+        plaquette_indices = []
+
+        for a in plaquette_coords:
+            plaquette_indices.append(self.get_plaquettecoordinates(idx = a[0], idy = a[1]))
         
-        return prefactor, indeces_list, links_list
+        
+        return prefactor, indeces_list, links_list, plaquette_indices
                     
 
     def get_prefactor(self):
         M = self.Npx - (self.Npy+1)//2 #in this way if Npy even: I get Npy/2, if odd I get (Npy+1)/2
-
+        # print("M: ", M)
         A = 0
         for i in range(M):
             A += i 
         B = M**2
         C = (self.Nyrows-2)*B
         
-        Np = (M+1)*(self.Npy-1) #number of total highlighted plaquettes, i.e. total elementary loops required to form big loop
-
+        Np = M*(self.Npy-1) #number of total highlighted plaquettes, i.e. total elementary loops required to form big loop
+        # print("Np ", Np)
         D = 0
         if Np%4 == 0:
             D = 1
@@ -354,8 +366,6 @@ class SitesOBC(BaseSites):
             D = -1j
         
         return D*(-1)**(A+C)
-
-            
 
 
 
@@ -527,6 +537,8 @@ class SitesPBCx(BaseSites):
         and returns the list of id coordinates of the sites of that plaquette"""
         if id is not None:
             idx, idy = self.id_to_idxidy(id)
+        else: 
+            id = self.idxidy_to_id(idx,idy)
         id_right = self.idxidy_to_id((idx+1) % self.Nxsites, idy)
         id_left = self.idxidy_to_id((idx-1) % self.Nxsites, idy)
         if idy == self.Nyrows-1 and self.Npy % 2==0:

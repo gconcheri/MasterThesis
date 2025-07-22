@@ -86,7 +86,7 @@ class FermionicGaussianRepresentation:
 	def reset_cov_e_matrix(self):
 		self.Cov_e = self.Cov.copy()
 
-	def expectation_val_Majorana_string(self, majoranas):
+	def expectation_val_Majorana_string(self, model = None, majoranas = None):
 		"""
 		Using Wick's theorem, we calculate <gamma_i ... gamma_j> = Pf(cov_{i,...,j})
 		where cov_{i,...,j} is the covariance matrix bla bla bla
@@ -95,15 +95,34 @@ class FermionicGaussianRepresentation:
 		majoranas is a list of 0 and 1 of length 2*n, where 1 indicates that that majorana is included.
 
 		"""
-		
+		if majoranas is not None:
+			majoranas_bool = majoranas.astype(bool)	
+			Cov_0_reduced = self.Cov_0[majoranas_bool][:, majoranas_bool]		
+			Cov_e_reduced = self.Cov_e[majoranas_bool][:, majoranas_bool]
+			return pf.pfaffian(Cov_0_reduced), pf.pfaffian(Cov_e_reduced)
+
+		prefactor, indices, links, _ = model.get_loop()
+
+		majoranas = np.zeros(model.Nsites)
+		majoranas[indices] = 1  # sets all specified indices to 1
+
 		majoranas_bool = majoranas.astype(bool)
 
+		u = u_config(model, type="Anyon")
+
+		exp = 0
+		for i,j in links:
+			if u[i,j] == -1:
+				exp +=1
+		
+		prefactor_e = prefactor*(-1)**exp
+		
 		Cov_0_reduced = self.Cov_0[majoranas_bool][:, majoranas_bool]		
 		Cov_e_reduced = self.Cov_e[majoranas_bool][:, majoranas_bool]
 	
-		return pf.pfaffian(Cov_0_reduced), pf.pfaffian(Cov_e_reduced)  # is the pfaffian directly the expectation value of the string?
+		return prefactor*pf.pfaffian(Cov_0_reduced), prefactor_e*pf.pfaffian(Cov_e_reduced)  # is the pfaffian directly the expectation value of the string?
 	
-	def order_parameter(self, majoranas):
+	def order_parameter(self, model = None, majoranas = None):
 		"""
 		given loop op. = O
 		We calculate Order parameter = <psi_e|O|psi_e>/<psi_0|O|psi_0> 
@@ -113,9 +132,13 @@ class FermionicGaussianRepresentation:
 		majoranas is a list of 0 and 1 of length 2*n, where 1 indicates that that majorana is included.
 
 		"""
-
-		exp_value_0, exp_value_e = self.expectation_val_Majorana_string(majoranas)
+		if majoranas is not None:
+			exp_value_0, exp_value_e = self.expectation_val_Majorana_string(majoranas)
+			return exp_value_e/exp_value_0
+		
+		exp_value_0, exp_value_e = self.expectation_val_Majorana_string(model)
 		return exp_value_e/exp_value_0
+
 	
 		
 def floquet_operator(hx, hy, hz, T):

@@ -10,6 +10,7 @@ def plot_honeycomb(model,
                     fig_size=(20,20), 
                     highlight_idxidy=None, sites=None, highlight_color='orange', #inputs to highlight sites
                     plaquette_site= None, #input to shade a certain plaquette with lowest site= plaquette_site
+                    loop = False,
                     plot_anyon_bonds=False, #input to draw anyon bonds
                     plot_diagonal_bonds = False, #input to draw diagonal bonds (explained above)
                     otherbonds_list = None, #input to draw any list of bonds
@@ -37,6 +38,28 @@ def plot_honeycomb(model,
         plaquette_coords = coords[plaquette_indices, :]  # only x and y for 2D
         polygon = Polygon(plaquette_coords, closed=True, facecolor='grey', alpha=0.3, edgecolor='none')
         plt.gca().add_patch(polygon)
+
+    if loop:
+        plaquette_indices = model.get_loop()[3] #list of sublists, where each sublists contains indices of one of 4 plaquettes at the vertices of the loop
+        loop_coordinates = [] #here is where we will save the 4 central plaquette coordinates, in order to draw the loop
+
+        for p in plaquette_indices:
+            plaquette_coords = coords[np.array(p)]
+            mean_x = np.mean(plaquette_coords[:, 0])
+            mean_y = np.mean(plaquette_coords[:, 1])
+            loop_coordinates.append((mean_x, mean_y))
+
+        loop_coordinates = np.array(loop_coordinates)
+        len_loop = len(plaquette_indices)
+        for i in range(len_loop):
+            print(i)
+            plt.plot([loop_coordinates[i,0], loop_coordinates[(i+1)%len_loop,0]], [loop_coordinates[i,1], loop_coordinates[(i+1)%len_loop,1]], '--', color = 'green', lw=2)
+
+
+        # loop_coords = [model.get_central_plaquette_coord(idx = i[0], idy = i[1]) for i in loop_p_coords]
+        # for i,j in loop_coords:
+            # plt.plot([loop_coords[i, 0], loop_coords[j, 0]], [coords[i, 1], coords[j, 1]], '--', lw=2)
+  
 
 
     # Highlight a specific site if requested
@@ -81,7 +104,7 @@ def plot_honeycomb(model,
     if otherbonds_list is not None:
         for i, j in otherbonds_list:
             plt.plot([coords[i, 0], coords[j, 0]], [coords[i, 1], coords[j, 1]],
-                     color='pink', lw=3, label='diagonal bond' if (i, j) == otherbonds_list[0] else "", zorder=4)
+                     color='pink', lw=3, label='other links' if (i, j) == otherbonds_list[0] else "", zorder=4)
     
     if nonzeropairs is not None and Cov is not None:
         for i, j in nonzeropairs:
@@ -135,7 +158,7 @@ def plot_honeycomb_cylinder(
 
         #Shade a specific plaquette
         if plaquette_site is not None:
-            plaquette_indices = model.get_plaquettecoordinates(plaquette_site)
+            plaquette_indices = model.get_plaquettecoordinates(id = plaquette_site)
             # get their coordinates
             verts = [coords[plaquette_indices]]  # shape (1, 6, 3)
             poly = Poly3DCollection(verts, facecolor='grey', alpha=0.3, edgecolor='none')
