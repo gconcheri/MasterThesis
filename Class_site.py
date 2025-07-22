@@ -80,7 +80,7 @@ class BaseSites:
 class SitesOBC(BaseSites):
     """ The lattice has open boundary conditions (OBC) along both x and y directions. """
 
-    def __init__(self, Npx, Npy, protruding=True):
+    def __init__(self, Npx, Npy):
         super().__init__(Npx, Npy)
         # OBC-specific initialization
         self.Nyrows = self.Npy + 1
@@ -190,7 +190,6 @@ class SitesOBC(BaseSites):
                                 zz_bondlist.append([id-self.Nxsites_1, id])
                             else: # odd number of plaquettes along y
                                 zz_bondlist.append([id-self.Nxsites_2, id])
-    
         
         yy_bondlist = [[b,a] for [a, b] in yy_bondlist]  # reverse the order of yy bonds to match the convention
         
@@ -256,7 +255,7 @@ class SitesOBC(BaseSites):
             id += 1
             idx, _ = self.id_to_idxidy(id)
 
-        return anyon_bondlist, idx_start, idy_start
+        return anyon_bondlist, id_start, idx_start, idy_start
     
     def get_plaquettecoordinates(self, id = None, idx = None, idy = None):
         """
@@ -369,21 +368,104 @@ class SitesOBC(BaseSites):
 
 
 
-# class SitesProtBonds(SitesOBC):
-#     """ The lattice has open boundary conditions (OBC) along both x and y directions, with protruding bonds. """
+class SitesProtBonds(SitesOBC):
+    """ The lattice has open boundary conditions (OBC) along both x and y directions, with protruding bonds. """
 
-#     def __init__(self, Npx, Npy):
-#         super().__init__(Npx, Npy)
-#         # Protruding bonds specific initialization
-#         self.Nxsites_0 = 2*self.Npx  # number of sites in the first and last row
-#         # self.Nxsites_1 = number of sites in the second and second-last row
-#         # self.Nxsites_2 = number of sites in bulk rows
-#         self.Nyrows = self.Nyrows + 3  # number of rows in the lattice
-#         self.Nsites = self.get_Nsites()
-#         self.ids = np.arange(self.Nsites)
-#         self.partition = self.get_partition()
-#         self.ids_A = [id for id in self.ids if self.partition[id] == 'A']
-#         self.ids_B = [id for id in self.ids if self.partition[id] == 'B']
+    def __init__(self, Npx, Npy):
+
+        super().__init__(Npx, Npy)
+
+        # Prendi i bond OBC standard PRIMA di modificare le variabili del reticolo
+        self.xx_bonds, self.yy_bonds, self.zz_bonds = super().get_bonds()
+
+        #Prendo valori coordinate nel caso OBC prima di modificare variabili del reticolo
+        self.coords = super().get_coordinates()
+
+        self.partition_old = super().get_partition()
+
+
+        # Protruding bonds specific initialization
+
+        self.Nxsites_0 = self.Npx  # number of sites in the first and last row
+        # self.Nxsites_1 = number of sites in the second and second-last row
+        # self.Nxsites_2 = number of sites in bulk rows
+        self.Nyrows = self.Nyrows + 3  # number of rows in the lattice
+        self.Nsites = self.get_Nsites()
+        self.ids = np.arange(self.Nsites)
+        self.partition = self.get_partition()
+        self.ids_A = [id for id in self.ids if self.partition[id] == 'A']
+        self.ids_B = [id for id in self.ids if self.partition[id] == 'B']
+
+    def get_Nsites(self):
+        Nsites = super().get_Nsites()
+        if self.Npx < 2:
+            return AssertionError("Npx must be greater than 1")
+        return Nsites + 2*self.Npx
+    
+    def get_partition(self):
+        partition = self.partition_old
+        for _ in range(self.Npx):
+            partition.insert(0, 'A')
+            partition.append('B')
+
+    
+    def id_to_idxidy(self, id):
+        if id < self.Npx: #id is one of upper protruding sites
+            idy = 0
+            idx = 2*id+1
+        elif id < self.Nsites - self.Npx: 
+            idy = (id - self.Npx + 1) // self.Nxsites_2 + 1
+            idx = (id - self.Npx +1) % self.Nxsites_2
+        else:
+            idy = self.Nyrows-1
+            idx = 2*(id - self.Npx +1) % self.Nxsites_2 +1
+
+        return idx, idy
+    
+    def idxidy_to_id(self, idx, idy):
+        #convert idx, idy to id
+        if idy == 0:
+            return idx//2
+        elif idy==1 or idy==2:
+            return idx + self.Nxsites_1*(idy-1) + self.Npx
+        elif idy>2 and idy < self.Nyrows-1:
+            return self.Npx + self.Nxsites_1 + (idy-2) * self.Nxsites_2 + idx
+        else:
+            return self.Npx + self.Nxsites_1 + (idy-2) * self.Nxsites_2 + idx//2
+    
+    def get_bonds(self):
+        # Recupera i bond originali
+        xx_bonds = self.xx_bonds; yy_bonds = self.yy_bonds; zz_bonds = self.zz_bonds
+        xx_bonds = []
+        yy_bonds = []
+        zz_bonds = []
+
+        for i,j in self.xx_bonds:
+            xx_bonds.append([i+self.Npx, j+self.Npx])
+        for i,j in self.yy_bonds:
+            yy_bonds.append([i+self.Npx, j+ self.Npx])
+        for i,j in self.zz_bonds:
+            zz_bonds.append([i+self.Npx, j+ self.Npx])
+        
+        for id in range(self.Npx):
+            x, y = self.id_to_idxidy(id)
+            id_down = self.idxidy_to_id(x,y+1)
+            zz_bonds.append([id, id_down])
+        
+        # for id in self.ids[-1:-1-self.Npx:-1]:
+        #     x, y = self.id_to_idxidy(id)
+        #     id_down = self.idxidy_to_id(x,y+1)
+        #     zz_bonds.append([id, id_up])
+        # cambia sta parte
+
+
+        return xx_bonds, yy_bonds, zz_bonds
+
+
+    
+    def get_coordinates(self):
+        coords = self.coords
+        #aggiungi coordinate nuove!
 
 
 

@@ -88,7 +88,7 @@ def plot_honeycomb(model,
 
     # Plot anyon bonds if requested
     if plot_anyon_bonds:
-        anyon_bonds, px, py = model.get_anyonbonds()
+        anyon_bonds = model.get_anyonbonds()[0]
         for i, j in anyon_bonds:
             plt.plot([coords[i, 0], coords[j, 0]], [coords[i, 1], coords[j, 1]],
                      color='magenta', lw=5, label='anyon bond' if (i, j) == anyon_bonds[0] else "", zorder=4)
@@ -287,7 +287,7 @@ def plot_honeycomb_torus(
                         color=color, lw=2)
         # Plot anyon bonds if requested
         if plot_anyon_bonds:
-            anyon_bonds, px, py = model.get_anyonbonds()
+            anyon_bonds = model.get_anyonbonds()[0]
             for i, j in anyon_bonds:
                 ax.plot([coords[i, 0], coords[j, 0]],
                         [coords[i, 1], coords[j, 1]],
