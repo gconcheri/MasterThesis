@@ -291,7 +291,7 @@ class SitesOBC(BaseSites):
 
         """
         if self.Npy < 2 or self.Npx <2:
-            return AssertionError("Npx and Npy must both be greater than 1")
+            raise AssertionError("Npx and Npy must both be greater than 1")
         
         M = self.Npx - (self.Npy+1)//2 #in this way if Npy even: I get Npy/2, if odd I get (Npy+1)/2
 
@@ -374,14 +374,19 @@ class SitesProtBonds(SitesOBC):
     def __init__(self, Npx, Npy):
 
         super().__init__(Npx, Npy)
+        
+        #Take values from old class which I will need to define same values for new class:
+        obc = SitesOBC(Npx,Npy)
 
         # Prendi i bond OBC standard PRIMA di modificare le variabili del reticolo
-        self.xx_bonds, self.yy_bonds, self.zz_bonds = super().get_bonds()
+        self.xx_bonds, self.yy_bonds, self.zz_bonds = obc.get_bonds()
 
         #Prendo valori coordinate nel caso OBC prima di modificare variabili del reticolo
-        self.coords = super().get_coordinates()
+        self.coords = obc.get_coordinates()
 
-        self.partition_old = super().get_partition()
+        self.partition_OBC = obc.get_partition()
+
+        self.Nsites_OBC = obc.get_Nsites()
 
 
         # Protruding bonds specific initialization
@@ -389,36 +394,42 @@ class SitesProtBonds(SitesOBC):
         self.Nxsites_0 = self.Npx  # number of sites in the first and last row
         # self.Nxsites_1 = number of sites in the second and second-last row
         # self.Nxsites_2 = number of sites in bulk rows
-        self.Nyrows = self.Nyrows + 3  # number of rows in the lattice
-        self.Nsites = self.get_Nsites()
+        self.Nyrows = self.Nyrows + 2  # number of rows in the lattice
+        self.Nsites = self.get_Nsitesnew(self.Nsites_OBC)
         self.ids = np.arange(self.Nsites)
-        self.partition = self.get_partition()
+        self.partition = self.get_newpartition(self.partition_OBC)
         self.ids_A = [id for id in self.ids if self.partition[id] == 'A']
         self.ids_B = [id for id in self.ids if self.partition[id] == 'B']
 
-    def get_Nsites(self):
-        Nsites = super().get_Nsites()
-        if self.Npx < 2:
-            return AssertionError("Npx must be greater than 1")
-        return Nsites + 2*self.Npx
+    def get_Nsitesnew(self, Nsites_OBC):
+        Nsites = Nsites_OBC
+        # if self.Npx < 2:
+        #     raise AssertionError("Npx must be greater than 1")
+        return Nsites + 2 * self.Npx
     
-    def get_partition(self):
-        partition = self.partition_old
+    def get_newpartition(self, partition_OBC):
+        partition = partition_OBC.tolist()
+
         for _ in range(self.Npx):
             partition.insert(0, 'A')
             partition.append('B')
+        
+        return np.array(partition)
 
     
     def id_to_idxidy(self, id):
         if id < self.Npx: #id is one of upper protruding sites
             idy = 0
             idx = 2*id+1
+        elif id < self.Npx+self.Nxsites_1:
+            idy = 1
+            idx = id - self.Npx
         elif id < self.Nsites - self.Npx: 
             idy = (id - self.Npx + 1) // self.Nxsites_2 + 1
             idx = (id - self.Npx +1) % self.Nxsites_2
         else:
             idy = self.Nyrows-1
-            idx = 2*(id - self.Npx +1) % self.Nxsites_2 +1
+            idx = 2*(id - self.Npx - self.Nxsites_1 +1) % self.Nxsites_2 +1
 
         return idx, idy
     
@@ -431,7 +442,7 @@ class SitesProtBonds(SitesOBC):
         elif idy>2 and idy < self.Nyrows-1:
             return self.Npx + self.Nxsites_1 + (idy-2) * self.Nxsites_2 + idx
         else:
-            return self.Npx + self.Nxsites_1 + (idy-2) * self.Nxsites_2 + idx//2
+            return self.Npx + self.Nxsites_1 + (idy-3) * self.Nxsites_2 + self.Nxsites_1 + idx//2
     
     def get_bonds(self):
         # Recupera i bond originali
@@ -452,20 +463,43 @@ class SitesProtBonds(SitesOBC):
             id_down = self.idxidy_to_id(x,y+1)
             zz_bonds.append([id, id_down])
         
-        # for id in self.ids[-1:-1-self.Npx:-1]:
-        #     x, y = self.id_to_idxidy(id)
-        #     id_down = self.idxidy_to_id(x,y+1)
-        #     zz_bonds.append([id, id_up])
-        # cambia sta parte
-
+        for id in self.ids[-1:-1-self.Npx:-1]:
+            x, y = self.id_to_idxidy(id)
+            id_up = self.idxidy_to_id(x,y-1)
+            zz_bonds.append([id_up, id])
 
         return xx_bonds, yy_bonds, zz_bonds
-
+    
 
     
     def get_coordinates(self):
-        coords = self.coords
+        coords = []
+        coords_old = self.coords.tolist()
+
+        offset_y = 0.5
+        offset_x = np.sqrt(3) / 2.
+
+
         #aggiungi coordinate nuove!
+        for id in range(self.Npx):
+            idx, _ = self.id_to_idxidy(id)
+            x = np.sqrt(3) * idx / 2.
+            y = + 1 + offset_y
+            coords.append((x,y))
+
+        coords = coords + coords_old
+        
+        for id in self.ids[-1-self.Npx+1:]:
+            idx, _ = self.id_to_idxidy(id)
+            y = -1.5*(self.Nyrows-3)-2*offset_y
+            x = np.sqrt(3) * idx / 2.
+            if self.Npy % 2 == 0:
+                x += offset_x
+            coords.append((x,y))
+        
+        return np.array(coords)
+
+        
 
 
 
@@ -811,9 +845,10 @@ class SitesPBCxy(SitesPBCx):
 
 
 # Example usage:
-#modell = site.SitesPBC(Npx=20, Npy=20)
-# plot_honeycomb_cylinder(modell, plot_static=True, make_gif=True)
+model = SitesProtBonds(Npx=2, Npy=3)
+model.get_coordinates()
 
-model = SitesPBCx(Npx=2, Npy=2)
-reop = model.reordering_operator()
-FT = model.FTOperator()
+
+# model = SitesPBCx(Npx=2, Npy=2)
+# reop = model.reordering_operator()
+# FT = model.FTOperator()
