@@ -446,7 +446,6 @@ class SitesProtBonds(SitesOBC):
     
     def get_bonds(self):
         # Recupera i bond originali
-        xx_bonds = self.xx_bonds; yy_bonds = self.yy_bonds; zz_bonds = self.zz_bonds
         xx_bonds = []
         yy_bonds = []
         zz_bonds = []
