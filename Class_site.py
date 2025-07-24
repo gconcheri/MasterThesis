@@ -80,11 +80,12 @@ class BaseSites:
 class SitesOBC(BaseSites):
     """ The lattice has open boundary conditions (OBC) along both x and y directions. """
 
-    def __init__(self, Npx, Npy):
+    def __init__(self, Npx, Npy, index = None):
+        self.index = index
         super().__init__(Npx, Npy)
         # OBC-specific initialization
         self.Nyrows = self.Npy + 1
-        self.Nxsites_1 = 2*self.Npx +1 #number of sites in the first and last row
+        self.Nxsites_1 = 2*self.Npx + 1 #number of sites in the first and last row
         self.Nxsites_2 = 2*(self.Npx + 1) #number of sites in bulk rows
         self.Nsites = self.get_Nsites()
         self.ids = np.arange(self.Nsites)
@@ -230,18 +231,19 @@ class SitesOBC(BaseSites):
         # print("px", px, "py", py)
 
         # id_start = self.idxidy_to_id(px,py)
-
-        index = len(self.ids_A)//2
-        x, y = self.id_to_idxidy(self.ids_A[index])
-        if x >= self.Nxsites_1//2:
-            x = 0
-            y +=1
-            id = self.idxidy_to_id(x,y)
-            index = np.argmin(np.abs(np.array(self.ids_A) - id))
+        index = self.index
+        if index is None:
+            index = len(self.ids_A)//2
+            x, y = self.id_to_idxidy(self.ids_A[index])
+            if x >= self.Nxsites_1//2:
+                x = 0
+                y +=1
+                id = self.idxidy_to_id(x,y)
+                index = np.argmin(np.abs(np.array(self.ids_A) - id))
     
-        while x < self.Nxsites_1//2:
-            index += 1
-            x, _ = self.id_to_idxidy(self.ids_A[index])
+            while x < self.Nxsites_1//2:
+                index += 1
+                x, _ = self.id_to_idxidy(self.ids_A[index])
 
 
         id_start = self.ids_A[index]
@@ -250,10 +252,16 @@ class SitesOBC(BaseSites):
         id = id_start
         idx = idx_start
 
-        while idx < self.Nxsites_2-1:
-            anyon_bondlist.append([id, id+1])
-            id += 1
-            idx, _ = self.id_to_idxidy(id)
+        if self.Npy > 1 and idy_start < self.Nyrows - 1:
+            while idx < self.Nxsites_2-1:
+                anyon_bondlist.append([id, id+1])
+                id += 1
+                idx, _ = self.id_to_idxidy(id)
+        else:
+            while idx < self.Nxsites_1-1:
+                anyon_bondlist.append([id, id+1])
+                id += 1
+                idx, _ = self.id_to_idxidy(id)
 
         return anyon_bondlist, id_start, idx_start, idy_start
     
@@ -341,6 +349,21 @@ class SitesOBC(BaseSites):
         
         
         return prefactor, indeces_list, links_list, plaquette_indices
+    
+    def get_small_loop(self):
+        #smallest loop, only around upper left plaquette
+        indeces_list = self.get_diagonalbonds()[0]
+        id = indeces_list[0]
+        id_down = indeces_list[1]
+        id_n = id +1 
+        id_nn = id + 2
+
+        links_list = [[id, id_n], [id_nn, id_n], [id_nn, id_down]]
+
+        prefactor = 1j 
+
+        return prefactor, indeces_list, links_list
+
                     
 
     def get_prefactor(self):
@@ -371,22 +394,23 @@ class SitesOBC(BaseSites):
 class SitesProtBonds(SitesOBC):
     """ The lattice has open boundary conditions (OBC) along both x and y directions, with protruding bonds. """
 
-    def __init__(self, Npx, Npy):
+    def __init__(self, Npx, Npy, index = None):
 
-        super().__init__(Npx, Npy)
+        super().__init__(Npx, Npy, index = index)
         
         #Take values from old class which I will need to define same values for new class:
-        obc = SitesOBC(Npx,Npy)
+        self.obc_model = SitesOBC(Npx,Npy, index = index)
 
-        # Prendi i bond OBC standard PRIMA di modificare le variabili del reticolo
-        self.xx_bonds, self.yy_bonds, self.zz_bonds = obc.get_bonds()
+        # Prendi i bond OBC standard
+        self.xx_bonds_OBC, self.yy_bonds_OBC, self.zz_bonds_OBC = self.obc_model.get_bonds()
 
-        #Prendo valori coordinate nel caso OBC prima di modificare variabili del reticolo
-        self.coords = obc.get_coordinates()
 
-        self.partition_OBC = obc.get_partition()
+        #Prendo valori coordinate nel caso OBC
+        self.coords_OBC = self.obc_model.get_coordinates()
 
-        self.Nsites_OBC = obc.get_Nsites()
+        self.partition_OBC = self.obc_model.get_partition()
+
+        self.Nsites_OBC = self.obc_model.get_Nsites()
 
 
         # Protruding bonds specific initialization
@@ -450,18 +474,19 @@ class SitesProtBonds(SitesOBC):
         yy_bonds = []
         zz_bonds = []
 
-        for i,j in self.xx_bonds:
-            xx_bonds.append([i+self.Npx, j+self.Npx])
-        for i,j in self.yy_bonds:
-            yy_bonds.append([i+self.Npx, j+ self.Npx])
-        for i,j in self.zz_bonds:
-            zz_bonds.append([i+self.Npx, j+ self.Npx])
+        xx_bonds_OBC, yy_bonds_OBC, zz_bonds_OBC = self.obc_model.get_bonds()
+        # Aggiungi i bond originali con la traslazione
+        xx_bonds = self.OBClist_translation(xx_bonds_OBC)
+        yy_bonds = self.OBClist_translation(yy_bonds_OBC)
         
+        #zz_bonds
         for id in range(self.Npx):
             x, y = self.id_to_idxidy(id)
             id_down = self.idxidy_to_id(x,y+1)
             zz_bonds.append([id, id_down])
-        
+    
+        zz_bonds = zz_bonds + self.OBClist_translation(zz_bonds_OBC)
+    
         for id in self.ids[-1:-1-self.Npx:-1]:
             x, y = self.id_to_idxidy(id)
             id_up = self.idxidy_to_id(x,y-1)
@@ -469,11 +494,77 @@ class SitesProtBonds(SitesOBC):
 
         return xx_bonds, yy_bonds, zz_bonds
     
+    def get_anyonbonds(self):
+        anyonbonds_OBC = self.obc_model.get_anyonbonds()
+        return self.OBClist_translation(anyonbonds_OBC[0]), anyonbonds_OBC[1], anyonbonds_OBC[2], anyonbonds_OBC[3]
+    
+    def get_diagonalbonds(self):
+        diagonalbonds_OBC = self.obc_model.get_diagonalbonds()
+        diagonalbonds = []
+        for id in range(self.Npx):
+            x, y = self.id_to_idxidy(id)
+            id_down = self.idxidy_to_id(x,y+1)
+            diagonalbonds.append([id, id_down])
+        
+        diagonalbonds = diagonalbonds + self.OBClist_translation(diagonalbonds_OBC)
+
+        id = self.ids[-1-self.Npx+1]
+        idx, idy = self.id_to_idxidy(id)
+        id_upleft = self.idxidy_to_id(idx-1, idy-1)
+        diagonalbonds.append([id, id_upleft])
+
+        id = self.ids[-1]
+        idx, idy = self.id_to_idxidy(id)
+        id_down = self.idxidy_to_id(idx, idy-1)
+        id_upright = self.idxidy_to_id(idx+1, idy-2)
+        diagonalbonds.append([id_upright, id_down])
+
+        for id in self.ids[-1-self.Npx+2:]:
+            idx, idy = self.id_to_idxidy(id)
+            id_upleft = self.idxidy_to_id(idx-2, idy-1)
+            diagonalbonds.append([id_upleft, id])
+        
+
+        
+
+        return diagonalbonds
+    
+    def get_plaquettecoordinates(self, id=None, idx=None, idy=None):
+
+        return self.OBClist_translation(self.obc_model.get_plaquettecoordinates(id = id, idx = idx, idy = idy))
+    
+    def get_loop(self):
+        prefactor, indeces_list, links_list, plaquette_indices = self.obc_model.get_loop()
+        indeces_list = self.OBClist_translation(indeces_list)
+        links_list = self.OBClist_translation(links_list)
+        plaquette_indices_new = []
+        for p in plaquette_indices:
+            p = self.OBClist_translation(p)
+            plaquette_indices_new.append(p)
+        return prefactor, indeces_list, links_list, plaquette_indices_new
+    
+    def get_small_loop(self):
+        prefactor, indeces_list, links_list = self.obc_model.get_small_loop()
+        indeces_list = self.OBClist_translation(indeces_list)
+        links_list = self.OBClist_translation(links_list)        
+        return prefactor, indeces_list, links_list
+
+
+    
+    def OBClist_translation(self, lst):
+        if isinstance(lst[0], list) or isinstance(lst[0], tuple):
+            # List of pairs: [[i, j], ...]
+            return [[i + self.Npx, j + self.Npx] for i, j in lst]
+        else:
+            # Flat list: [i, j, ...]
+            return [i + self.Npx for i in lst]
+            
+
 
     
     def get_coordinates(self):
         coords = []
-        coords_old = self.coords.tolist()
+        coords_OBC = self.coords_OBC.tolist()
 
         offset_y = 0.5
         offset_x = np.sqrt(3) / 2.
@@ -486,7 +577,7 @@ class SitesProtBonds(SitesOBC):
             y = + 1 + offset_y
             coords.append((x,y))
 
-        coords = coords + coords_old
+        coords = coords + coords_OBC
         
         for id in self.ids[-1-self.Npx+1:]:
             idx, _ = self.id_to_idxidy(id)

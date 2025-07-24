@@ -98,7 +98,7 @@ def plot_honeycomb(model,
         diag_bonds = model.get_diagonalbonds()
         for i, j in diag_bonds:
             plt.plot([coords[i, 0], coords[j, 0]], [coords[i, 1], coords[j, 1]],
-                     color='green', lw=2, label='diagonal bond' if (i, j) == diag_bonds[0] else "", zorder=4)    
+                     color='purple', lw=2, label='diagonal bond' if (i, j) == diag_bonds[0] else "", zorder=4)    
 
     #plot other bonds if requested
     if otherbonds_list is not None:
@@ -320,3 +320,9 @@ def plot_honeycomb_torus(
             fig, update, frames=np.linspace(0, 360, frames), interval=interval
         )
         ani.save(gif_filename, writer='pillow') # or ani.save(filename, writer='ffmpeg') with filename = "ciao.mp4"
+
+
+# import Class_site as site
+
+# model = site.SitesPBCx(Npx=20, Npy=20)  # Example model, adjust as needed
+# plot_honeycomb_cylinder(model)

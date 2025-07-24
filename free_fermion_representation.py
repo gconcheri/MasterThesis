@@ -86,7 +86,7 @@ class FermionicGaussianRepresentation:
 	def reset_cov_e_matrix(self):
 		self.Cov_e = self.Cov.copy()
 
-	def expectation_val_Majorana_string(self, model = None, majoranas = None):
+	def expectation_val_Majorana_string(self, model = None, small_loop = False, majoranas = None):
 		"""
 		Using Wick's theorem, we calculate <gamma_i ... gamma_j> = Pf(cov_{i,...,j})
 		where cov_{i,...,j} is the covariance matrix bla bla bla
@@ -100,8 +100,12 @@ class FermionicGaussianRepresentation:
 			Cov_0_reduced = self.Cov_0[majoranas_bool][:, majoranas_bool]		
 			Cov_e_reduced = self.Cov_e[majoranas_bool][:, majoranas_bool]
 			return pf.pfaffian(Cov_0_reduced), pf.pfaffian(Cov_e_reduced)
-
-		prefactor, indices, links, _ = model.get_loop()
+		
+		if small_loop:
+			# for small loop, we use the loop operator defined in the model
+			prefactor, indices, links = model.get_small_loop()
+		else:
+			prefactor, indices, links, _ = model.get_loop()
 
 		majoranas = np.zeros(model.Nsites)
 		majoranas[indices] = 1  # sets all specified indices to 1
@@ -122,7 +126,7 @@ class FermionicGaussianRepresentation:
 	
 		return prefactor*pf.pfaffian(Cov_0_reduced), prefactor_e*pf.pfaffian(Cov_e_reduced)  # is the pfaffian directly the expectation value of the string?
 	
-	def order_parameter(self, model = None, majoranas = None):
+	def order_parameter(self, model = None, majoranas = None, small_loop = False):
 		"""
 		given loop op. = O
 		We calculate Order parameter = <psi_e|O|psi_e>/<psi_0|O|psi_0> 
@@ -133,10 +137,11 @@ class FermionicGaussianRepresentation:
 
 		"""
 		if majoranas is not None:
-			exp_value_0, exp_value_e = self.expectation_val_Majorana_string(majoranas)
+			exp_value_0, exp_value_e = self.expectation_val_Majorana_string(majoranas = majoranas, small_loop=small_loop)
 			return exp_value_e/exp_value_0
 		
-		exp_value_0, exp_value_e = self.expectation_val_Majorana_string(model)
+
+		exp_value_0, exp_value_e = self.expectation_val_Majorana_string(model, small_loop=small_loop)
 		return exp_value_e/exp_value_0
 
 	
@@ -155,7 +160,7 @@ def u_config(model, type=None):
     u = np.ones((model.Nsites, model.Nsites), dtype=np.complex128)
 
     if type == 'Anyon':
-        anyon_bondlist, _, _ = model.get_anyonbonds()
+        anyon_bondlist = model.get_anyonbonds()[0]
         for i, j in anyon_bondlist:
             u[i, j] = -1
             u[j, i] = -1
@@ -240,8 +245,6 @@ def build_covariance_matrix(model, diagonalcov = True):
 
 	return Cov
 
-"""
-qui prima o poi definirò funzione per creare e_loop_operator dipendente da model! (o meglio definirlo dentro la classe?)"""
 
 if __name__ == '__main__':
 	n = 16
