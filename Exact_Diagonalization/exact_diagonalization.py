@@ -189,27 +189,27 @@ def floquet_unitary(psi, n_spins, T = 1, X = X, Z = Z, Y = Y, I = I,
     #maybe do first sum of sparse matrices XX and then call one unique expm_mulitply
 
     if applyX:
-        psi_t = expm_multiply(+1.j * T *np.pi/4. * Op_full(X, I, Xindexlist[0], n_spins), psi_t)
+        psi_t = expm_multiply(-1.j * T *np.pi/4. * Op_full(X, I, Xindexlist[0], n_spins), psi_t)
 
         if len(Xindexlist) > 1:
             for indeces in Xindexlist[1:]:
-                psi_t = expm_multiply(+1.j * T * np.pi/4. * Op_full(X, I, indeces, n_spins), psi_t)
+                psi_t = expm_multiply(-1.j * T * np.pi/4. * Op_full(X, I, indeces, n_spins), psi_t)
         i = 1
 
     #apply YY unitary
 
     if applyY:
-        psi_t = expm_multiply(+1.j * T *np.pi/4. * Op_full(Y, I, Yindexlist[0], n_spins), psi_t)
+        psi_t = expm_multiply(-1.j * T *np.pi/4. * Op_full(Y, I, Yindexlist[0], n_spins), psi_t)
 
         if len(Yindexlist) > 1:
             for indeces in Yindexlist[1:]:
-                psi_t = expm_multiply(+1.j * T * np.pi/4. * Op_full(Y, I, indeces, n_spins), psi_t)
+                psi_t = expm_multiply(-1.j * T * np.pi/4. * Op_full(Y, I, indeces, n_spins), psi_t)
         j = 1
 
     #apply ZZ unitary: check
     if applyZ:
         for n in range(0, n_spins, 2):
-            psi_t = Op_full(expm(+1.j * T * np.pi/4. * sparse.kron(Z,Z, 'csr')), I, n, n_spins-1) @ psi_t
+            psi_t = Op_full(expm(-1.j * T * np.pi/4. * sparse.kron(Z,Z, 'csr')), I, n, n_spins-1) @ psi_t
         z = 1
     
     print("i,j,z", i,j,z)

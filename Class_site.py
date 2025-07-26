@@ -501,33 +501,37 @@ class SitesProtBonds(SitesOBC):
     def get_diagonalbonds(self):
         diagonalbonds_OBC = self.obc_model.get_diagonalbonds()
         diagonalbonds = []
+        cov_value = []
         for id in range(self.Npx):
             x, y = self.id_to_idxidy(id)
             id_down = self.idxidy_to_id(x,y+1)
             diagonalbonds.append([id, id_down])
+            cov_value.append(-1)
         
         diagonalbonds = diagonalbonds + self.OBClist_translation(diagonalbonds_OBC)
+        cov_value = cov_value + [1 for _ in diagonalbonds_OBC]
 
         id = self.ids[-1-self.Npx+1]
         idx, idy = self.id_to_idxidy(id)
         id_upleft = self.idxidy_to_id(idx-1, idy-1)
-        diagonalbonds.append([id, id_upleft])
+        diagonalbonds.append([id_upleft, id])
+        cov_value.append(-1)
 
         id = self.ids[-1]
         idx, idy = self.id_to_idxidy(id)
         id_down = self.idxidy_to_id(idx, idy-1)
         id_upright = self.idxidy_to_id(idx+1, idy-2)
         diagonalbonds.append([id_upright, id_down])
+        cov_value.append(1)
 
         for id in self.ids[-1-self.Npx+2:]:
             idx, idy = self.id_to_idxidy(id)
             id_upleft = self.idxidy_to_id(idx-2, idy-1)
             diagonalbonds.append([id_upleft, id])
+            cov_value.append(1)
         
 
-        
-
-        return diagonalbonds
+        return diagonalbonds, cov_value
     
     def get_plaquettecoordinates(self, id=None, idx=None, idy=None):
 
