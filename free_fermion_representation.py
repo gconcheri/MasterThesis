@@ -25,7 +25,7 @@ class FermionicGaussianRepresentation:
 
 		# Omega_inv corresponds to the Omega in the paper, however it is not exactly the same.
 		#i.e. Omega_inv here creates complex fermions pairing adjacent Majorana operators gamma_i gamma_i+1!
-		self.Cov = build_covariance_matrix_protbonds(model, diagonalcov)
+		self.Cov = build_covariance_matrix(model, diagonalcov = diagonalcov)
 		self.Cov_0 = self.Cov.copy()
 		self.Cov_e = self.Cov.copy()
 		# self.Corr = self.cov_to_corr()
@@ -86,7 +86,7 @@ class FermionicGaussianRepresentation:
 	def reset_cov_e_matrix(self):
 		self.Cov_e = self.Cov.copy()
 
-	def expectation_val_Majorana_string(self, model = None, small_loop = False, majoranas = None):
+	def expectation_val_Majorana_string(self, model = None, small_loop = False, majoranas = None, factor = None):
 		"""
 		Using Wick's theorem, we calculate <gamma_i ... gamma_j> = Pf(cov_{i,...,j})
 		where cov_{i,...,j} is the covariance matrix bla bla bla
@@ -97,9 +97,13 @@ class FermionicGaussianRepresentation:
 		"""
 		if majoranas is not None:
 			majoranas_bool = majoranas.astype(bool)	
+			num_ones = np.sum(majoranas_bool)
+			prefactor_maj = 1j**(num_ones/2) 
+			if factor is not None:
+				prefactor_maj *= factor
 			Cov_0_reduced = self.Cov_0[majoranas_bool][:, majoranas_bool]		
 			Cov_e_reduced = self.Cov_e[majoranas_bool][:, majoranas_bool]
-			return pf.pfaffian(Cov_0_reduced), pf.pfaffian(Cov_e_reduced)
+			return prefactor_maj * pf.pfaffian(Cov_0_reduced), prefactor_maj * pf.pfaffian(Cov_e_reduced)
 		
 		if small_loop:
 			# for small loop, we use the loop operator defined in the model
@@ -111,6 +115,10 @@ class FermionicGaussianRepresentation:
 		majoranas[indices] = 1  # sets all specified indices to 1
 
 		majoranas_bool = majoranas.astype(bool)
+
+		prefactor_maj = 1j**(len(indices)/2)
+
+		prefactor *= prefactor_maj
 
 		u = u_config(model, type="Anyon")
 
@@ -139,7 +147,6 @@ class FermionicGaussianRepresentation:
 		if majoranas is not None:
 			exp_value_0, exp_value_e = self.expectation_val_Majorana_string(majoranas = majoranas, small_loop=small_loop)
 			return exp_value_e/exp_value_0
-		
 
 		exp_value_0, exp_value_e = self.expectation_val_Majorana_string(model, small_loop=small_loop)
 		return exp_value_e/exp_value_0
@@ -239,9 +246,13 @@ def build_covariance_matrix(model, diagonalcov = True):
 	Cov = np.zeros((model.Nsites, model.Nsites), dtype=np.complex128)
 
 	if diagonalcov:
-		for i, j in diag_bonds:
-			Cov[i, j] = + 1
-			# Cov[j, i] = - 1
+		if hasattr(model, 'cov_value') and model.cov_value is not None:
+			for idx, (i, j) in enumerate(diag_bonds):
+				Cov[i, j] = model.cov_value[idx]
+		else:
+			for i, j in diag_bonds:
+				Cov[i, j] = + 1
+				# Cov[j, i] = - 1
 	else:
 		for i,j in zz_bonds:
 			Cov[i, j] = 1
@@ -251,36 +262,36 @@ def build_covariance_matrix(model, diagonalcov = True):
 
 	return Cov
 
-def build_covariance_matrix_protbonds(model, diagonalcov = True):
-	"""
-	Builds the covariance matrix of the initial states |psi_0> and |psi_e> of the 
-	Honeycomb model
+# def build_covariance_matrix_protbonds(model, diagonalcov = True):
+# 	"""
+# 	Builds the covariance matrix of the initial states |psi_0> and |psi_e> of the 
+# 	Honeycomb model
 	
-	cov_ij = i <(γ_i γ_j - γ_j γ_i)> / 2
+# 	cov_ij = i <(γ_i γ_j - γ_j γ_i)> / 2
 	
-	I.e. in every plaquette, the majorana fermions are coupled diagonally, thus 
-	giving rise to diagonal dirac/complex unoccupied fermion (parity +1)
-	"""
+# 	I.e. in every plaquette, the majorana fermions are coupled diagonally, thus 
+# 	giving rise to diagonal dirac/complex unoccupied fermion (parity +1)
+# 	"""
 
 
-	diag_bonds, cov_value = model.get_diagonalbonds()
-	print(len(cov_value))
-	print(len(diag_bonds))
-	_, _, zz_bonds = model.get_bonds()
-	Cov = np.zeros((model.Nsites, model.Nsites), dtype=np.complex128)
+# 	diag_bonds, cov_value = model.get_diagonalbonds()
+# 	print(len(cov_value))
+# 	print(len(diag_bonds))
+# 	_, _, zz_bonds = model.get_bonds()
+# 	Cov = np.zeros((model.Nsites, model.Nsites), dtype=np.complex128)
 
-	if diagonalcov:
-		for idx, (i, j) in enumerate(diag_bonds):
-			Cov[i, j] = cov_value[idx]
-			# Cov[j, i] = - 1
-	else:
-		for i,j in zz_bonds:
-			Cov[i, j] = 1
-			# Cov[j, i] = - 1
+# 	if diagonalcov:
+# 		for idx, (i, j) in enumerate(diag_bonds):
+# 			Cov[i, j] = cov_value[idx]
+# 			# Cov[j, i] = - 1
+# 	else:
+# 		for i,j in zz_bonds:
+# 			Cov[i, j] = 1
+# 			# Cov[j, i] = - 1
 
-	Cov = Cov - Cov.T
+# 	Cov = Cov - Cov.T
 
-	return Cov
+# 	return Cov
 
 
 if __name__ == '__main__':

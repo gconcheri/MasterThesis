@@ -498,7 +498,7 @@ class SitesProtBonds(SitesOBC):
         anyonbonds_OBC = self.obc_model.get_anyonbonds()
         return self.OBClist_translation(anyonbonds_OBC[0]), anyonbonds_OBC[1], anyonbonds_OBC[2], anyonbonds_OBC[3]
     
-    def get_diagonalbonds(self):
+    def get_diagonalbonds(self, cov = True):
         diagonalbonds_OBC = self.obc_model.get_diagonalbonds()
         diagonalbonds = []
         cov_value = []
@@ -520,7 +520,10 @@ class SitesProtBonds(SitesOBC):
         id = self.ids[-1]
         idx, idy = self.id_to_idxidy(id)
         id_down = self.idxidy_to_id(idx, idy-1)
-        id_upright = self.idxidy_to_id(idx+1, idy-2)
+        if self.Npy % 2 == 0:
+            id_upright = self.idxidy_to_id(idx+2, idy-2)
+        else:
+            id_upright = self.idxidy_to_id(idx+1, idy-2)
         diagonalbonds.append([id_upright, id_down])
         cov_value.append(1)
 
@@ -530,8 +533,10 @@ class SitesProtBonds(SitesOBC):
             diagonalbonds.append([id_upleft, id])
             cov_value.append(1)
         
+        if cov:
+            self.cov_value = cov_value
 
-        return diagonalbonds, cov_value
+        return diagonalbonds
     
     def get_plaquettecoordinates(self, id=None, idx=None, idy=None):
 
