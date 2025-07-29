@@ -52,7 +52,6 @@ def plot_honeycomb(model,
         loop_coordinates = np.array(loop_coordinates)
         len_loop = len(plaquette_indices)
         for i in range(len_loop):
-            print(i)
             plt.plot([loop_coordinates[i,0], loop_coordinates[(i+1)%len_loop,0]], [loop_coordinates[i,1], loop_coordinates[(i+1)%len_loop,1]], '--', color = 'green', lw=2)
 
 

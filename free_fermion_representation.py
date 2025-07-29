@@ -10,6 +10,8 @@ class FermionicGaussianRepresentation:
 
 	def __init__(self, model, diagonalcov = True):
 
+		self.model = model
+
 		n = model.Nsites // 2
 		self.n = n
 
@@ -86,10 +88,11 @@ class FermionicGaussianRepresentation:
 	def reset_cov_e_matrix(self):
 		self.Cov_e = self.Cov.copy()
 
-	def expectation_val_Majorana_string(self, model = None, small_loop = False, majoranas = None, factor = None):
+#%%
+	def expectation_val_Majorana_string_old(self, model = None, small_loop = False, majoranas = None, factor = None):
 		"""
-		Using Wick's theorem, we calculate <gamma_i ... gamma_j> = Pf(cov_{i,...,j})
-		where cov_{i,...,j} is the covariance matrix bla bla bla
+		Using Wick's theorem, we calculate <gamma_i ... gamma_j> = (-1j)^(len(gamma_i...gamma_j)/2) Pf(cov_{i,...,j})
+		where cov_{i,...,j} is the covariance matrix
 		Important: i<...<j
 
 		majoranas is a list of 0 and 1 of length 2*n, where 1 indicates that that majorana is included.
@@ -98,7 +101,7 @@ class FermionicGaussianRepresentation:
 		if majoranas is not None:
 			majoranas_bool = majoranas.astype(bool)	
 			num_ones = np.sum(majoranas_bool)
-			prefactor_maj = 1j**(num_ones/2) 
+			prefactor_maj = (-1j)**(num_ones/2) 
 			if factor is not None:
 				prefactor_maj *= factor
 			Cov_0_reduced = self.Cov_0[majoranas_bool][:, majoranas_bool]		
@@ -113,10 +116,8 @@ class FermionicGaussianRepresentation:
 
 		majoranas = np.zeros(model.Nsites)
 		majoranas[indices] = 1  # sets all specified indices to 1
-
 		majoranas_bool = majoranas.astype(bool)
-
-		prefactor_maj = 1j**(len(indices)/2)
+		prefactor_maj = (-1j)**(len(indices)/2)
 
 		prefactor *= prefactor_maj
 
@@ -133,22 +134,70 @@ class FermionicGaussianRepresentation:
 		Cov_e_reduced = self.Cov_e[majoranas_bool][:, majoranas_bool]
 	
 		return prefactor*pf.pfaffian(Cov_0_reduced), prefactor_e*pf.pfaffian(Cov_e_reduced)  # is the pfaffian directly the expectation value of the string?
+
+#%%
+
+	def expectation_val_Majorana_string(self, Cov = None, indices = None, factor = None):
+		"""
+		Using Wick's theorem, we calculate: factor * <gamma_i ... gamma_j> = factor * (-1j)^(len(gamma_i...gamma_j)/2) Pf(cov_{i,...,j})
+		where cov_{i,...,j} is the covariance matrix
+		Important: i<...<j
+
+		indices is list of indices of the majorana fermions to include in the string!
+		from this list we create the list majoranas, which is a list of 0 and 1 of length 2*n, where 1 indicates that that majorana is included.
+
+		"""
+		if Cov is None:
+			Cov = self.Cov
+
+		# majoranas = [1 if i in indices else 0 for i in range(model.Nsites)]
+		
+		majoranas = np.zeros(self.model.Nsites)
+		majoranas[indices] = 1  # sets all specified indices to 1
+		majoranas_bool = majoranas.astype(bool)
+		prefactor_maj = (-1j)**(len(indices)/2)
+
+		if factor is not None:
+			prefactor_maj *= factor
+
+		Cov_reduced = Cov[majoranas_bool][:, majoranas_bool]		
 	
-	def order_parameter(self, model = None, majoranas = None, small_loop = False):
+		return prefactor_maj*pf.pfaffian(Cov_reduced)
+	
+
+	def expectation_value_loop(self, small_loop = False):
+
+		if small_loop:
+			# for small loop, we use the loop operator defined in the model
+			prefactor, indices, links = self.model.get_small_loop()
+		else:
+			prefactor, indices, links, _ = self.model.get_loop()
+
+		u = u_config(self.model, type="Anyon")
+
+		exp = 0
+		for i,j in links:
+			if u[i,j] == -1:
+				exp +=1
+		
+		prefactor_e = (-1)**exp
+
+		exp_value_0 = self.expectation_val_Majorana_string(self.Cov_0, indices, prefactor)
+		exp_value_e = self.expectation_val_Majorana_string(self.Cov_e, indices, prefactor*prefactor_e)
+
+		return exp_value_0, exp_value_e
+	
+	
+	def order_parameter(self, small_loop = False):
 		"""
 		given loop op. = O
 		We calculate Order parameter = <psi_e|O|psi_e>/<psi_0|O|psi_0> 
-		where the two expectation values are calculates with Wick's theorem with previously defined function
+		where the two expectation values are calculated with Wick's theorem with previously defined function
 		loop operator written as string of majoranas gamma_i ... gamma_j
-
-		majoranas is a list of 0 and 1 of length 2*n, where 1 indicates that that majorana is included.
-
 		"""
-		if majoranas is not None:
-			exp_value_0, exp_value_e = self.expectation_val_Majorana_string(majoranas = majoranas, small_loop=small_loop)
-			return exp_value_e/exp_value_0
 
-		exp_value_0, exp_value_e = self.expectation_val_Majorana_string(model, small_loop=small_loop)
+		exp_value_0, exp_value_e = self.expectation_value_loop(small_loop=small_loop)
+
 		return exp_value_e/exp_value_0
 
 	
@@ -262,37 +311,6 @@ def build_covariance_matrix(model, diagonalcov = True):
 
 	return Cov
 
-# def build_covariance_matrix_protbonds(model, diagonalcov = True):
-# 	"""
-# 	Builds the covariance matrix of the initial states |psi_0> and |psi_e> of the 
-# 	Honeycomb model
-	
-# 	cov_ij = i <(γ_i γ_j - γ_j γ_i)> / 2
-	
-# 	I.e. in every plaquette, the majorana fermions are coupled diagonally, thus 
-# 	giving rise to diagonal dirac/complex unoccupied fermion (parity +1)
-# 	"""
-
-
-# 	diag_bonds, cov_value = model.get_diagonalbonds()
-# 	print(len(cov_value))
-# 	print(len(diag_bonds))
-# 	_, _, zz_bonds = model.get_bonds()
-# 	Cov = np.zeros((model.Nsites, model.Nsites), dtype=np.complex128)
-
-# 	if diagonalcov:
-# 		for idx, (i, j) in enumerate(diag_bonds):
-# 			Cov[i, j] = cov_value[idx]
-# 			# Cov[j, i] = - 1
-# 	else:
-# 		for i,j in zz_bonds:
-# 			Cov[i, j] = 1
-# 			# Cov[j, i] = - 1
-
-# 	Cov = Cov - Cov.T
-
-# 	return Cov
-
 
 if __name__ == '__main__':
 	n = 16
@@ -303,3 +321,5 @@ if __name__ == '__main__':
 	FGH = FermionicGaussianRepresentation(Hmaj)
 
 	Cov = FGH.covariance_matrix_ground_state()
+
+# %%
