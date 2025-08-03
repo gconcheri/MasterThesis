@@ -151,7 +151,7 @@ class FermionicGaussianRepresentation:
 			Cov = self.Cov
 
 		# majoranas = [1 if i in indices else 0 for i in range(model.Nsites)]
-		
+
 		majoranas = np.zeros(self.model.Nsites)
 		majoranas[indices] = 1  # sets all specified indices to 1
 		majoranas_bool = majoranas.astype(bool)
@@ -199,8 +199,41 @@ class FermionicGaussianRepresentation:
 		exp_value_0, exp_value_e = self.expectation_value_loop(small_loop=small_loop)
 
 		return exp_value_e/exp_value_0
+	
+	def majorana_density_0(self, indices):
+		"""
+		returns n_jk = (1 - i phi_jk c_j c_k)/2
+
+		with indices = [j,k]
+
+		"""
+		j, k = indices
+
+		return (1 - 1j * self.Cov_0[j,k])/2.
+	
+	def total_majorana_density(self, index):
+		"""
+		given index j,
+		returns n_j =  Σ_{i!=j} n_ij
+		"""
+		j = index
+		n_j = 0
+
+		for i in range(self.model.Nsites):
+			if i < j:
+				n_j += self.majorana_density_0([i,j])
+			if i > j:
+				_, y_i = self.model.id_to_idxidy(i) 
+				_, y_j = self.model.id_to_idxidy(j)
+				if y_i == y_j:
+					n_j += self.majorana_density_0([j,i])
+				else:
+					n_j += self.majorana_density_0([i,j])
+		return n_j
+
 
 	
+
 		
 def floquet_operator(hx, hy, hz, T, alpha = -1):
 	t = T*np.pi/4.
@@ -219,6 +252,8 @@ def u_config(model, type=None):
 		for i, j in anyon_bondlist:
 			u[i, j] = -1
 			u[j, i] = -1
+			#they are both equal to -1 because the operators h, h_dis are already defined as ci cj - cj ci
+			#recall that: u_ij ci cj = u_ji c_j c_i
 	return u
 
 
@@ -277,7 +312,39 @@ def generate_h_Majorana(model, Jxx=1.0, Jyy=1.0, Jzz=1.0, type=None):
 		h = h * u
 			
 	return h
+
+def generate_disorder_term(model, cov, delta, type = None):
+	"""
+	Disorder Potential is given by:
+
+	V = - i Σ_phi delta_phi phi_ij (γ_i γ_j - γ_j γ_i) = - i Σ_{i,j} (h_dis_ij γ_i γ_j + h_dis_ji γ_j γ_i)
+	with the combination (i,j) counted only once in the sum
+	here i,j are the diagonal sites and phi indicates the bond we are considering
+
+	"""
+	diagonal_bonds = model.get_diagonalbonds(edge = True)
+	links_list = model.links_list
+	values_list = []
+
+
+	if type == "Anyon":
+		u = u_config(model, type = type)
+		for phi in links_list:
+			value = 1
+			for i,j in phi:
+				value *=u[i,j]
+			values_list.append(value) 
+
+
+	h_dis = np.zeros((model.Nsites, model.Nsites), dtype=np.complex128)
 	
+	for idx, (i,j) in enumerate(diagonal_bonds):
+		rand_num = np.random.uniform(-delta, delta)
+		h_dis[i,j] = rand_num * values_list[idx] * cov[i,j]
+
+	h_dis = h_dis - h_dis.T
+
+	return h_dis
 
 def build_covariance_matrix(model, diagonalcov = True):
 	"""
@@ -310,6 +377,7 @@ def build_covariance_matrix(model, diagonalcov = True):
 	Cov = Cov - Cov.T
 
 	return Cov
+
 
 
 if __name__ == '__main__':

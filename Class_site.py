@@ -80,8 +80,9 @@ class BaseSites:
 class SitesOBC(BaseSites):
     """ The lattice has open boundary conditions (OBC) along both x and y directions. """
 
-    def __init__(self, Npx, Npy, index = None):
+    def __init__(self, Npx, Npy, index = None, edge = False):
         self.index = index
+        self.edge = edge
         super().__init__(Npx, Npy)
         # OBC-specific initialization
         self.Nyrows = self.Npy + 1
@@ -92,6 +93,7 @@ class SitesOBC(BaseSites):
         self.partition = self.get_partition()
         self.ids_A = [id for id in self.ids if self.partition[id] == 'A']
         self.ids_B = [id for id in self.ids if self.partition[id] == 'B']
+        
         
     def id_to_idxidy(self, id):
         idy = (id + 1) // self.Nxsites_2
@@ -115,8 +117,9 @@ class SitesOBC(BaseSites):
             Nsites = (self.Nyrows - 2)*self.Nxsites_2 + Nsites
         return Nsites
     
-    def get_Nxsite(self, id):
-        idx, idy = self.id_to_idxidy(id)
+    def get_Nxsite(self, id = None, idy = None):
+        if idy is None:
+            _, idy = self.id_to_idxidy(id)
         if idy == 0 or idy == self.Nyrows - 1:
             return self.Nxsites_1
         else:
@@ -196,27 +199,67 @@ class SitesOBC(BaseSites):
         
         return xx_bondlist, yy_bondlist, zz_bondlist
     
-    def get_diagonalbonds(self):
+    def get_diagonalbonds(self, links = True):
         """
         Returns a list of diagonal bonds in the honeycomb lattice.
         Diagonal bonds connect sites in different sublattices (A and B) that are diagonally adjacent.
         i.e. bonds connecting site from the top left corner of a plaquette to the bottom right corner of the same plaquette.
         """
         diag_bondlist = []
+        links_list = []
 
         for i, id in enumerate(self.ids_A):
             idx, idy = self.id_to_idxidy(id)
             if i % (self.Npx+1) != self.Npx: #if id is not the last site in sublattice A for that row
                 if idy < self.Nyrows - 2:  # if id not in the last two rows
-                    next_id = self.idxidy_to_id(idx + 2, idy + 1)
-                    diag_bondlist.append([id, next_id])
+                    diag_id = self.idxidy_to_id(idx + 2, idy + 1)
+                    down_id = diag_id -2
+                    centre_id = diag_id-1
+                    diag_bondlist.append([id, diag_id])
+                    links_list.append([[id,down_id], [down_id, centre_id], [diag_id, centre_id]])
                 elif idy == self.Nyrows - 2:    # we are in the second last row
                     if self.Npy % 2 == 0:
-                        next_id = self.idxidy_to_id(idx + 1, idy + 1)
-                        diag_bondlist.append([id, next_id])
+                        diag_id = self.idxidy_to_id(idx + 1, idy + 1)
+                        down_id = diag_id -2
+                        centre_id = diag_id-1
+                        diag_bondlist.append([id, diag_id])
+                        links_list.append([[id,down_id], [down_id, centre_id], [diag_id, centre_id]])
                     else:
-                        next_id = self.idxidy_to_id(idx + 2, idy + 1)
-                        diag_bondlist.append([id, next_id])
+                        diag_id = self.idxidy_to_id(idx + 2, idy + 1)
+                        down_id = diag_id -2
+                        centre_id = diag_id-1
+                        diag_bondlist.append([id, diag_id])
+                        links_list.append([[id,down_id], [down_id, centre_id], [diag_id, centre_id]])
+
+        if self.edge:
+            if self.Npy != self.Npx or self.Npy % 2 == 0 or self.Npy == 1:  
+                raise AssertionError("Npx and Npy must both be equal, odd and greater than 1")
+            # Add diagonal bonds for the last row
+            for id in self.ids_B[:self.Npx-2:2]:
+                diag_bondlist.append([id, id+2])
+            
+            id = self.ids_B[self.Npx-1]
+            diag_bondlist.append([id, id+1])
+
+            for y in range(self.Npy)[1::2]:
+                id = self.idxidy_to_id(0,y)
+                id_down = self.idxidy_to_id(1,y+1)
+                diag_bondlist.append([id, id_down])
+                x = self.Nxsites_2 -1
+                id = self.idxidy_to_id(x, y)
+                id_down = self.idxidy_to_id(x-1, y+1)
+                diag_bondlist.append([id, id_down])
+            
+            for id in self.ids_A[-self.Npx+1::2]:
+                diag_bondlist.append([id, id+2])
+
+            id = self.ids_B[-self.Npx-1]
+            diag_bondlist.append([id, id+1])
+            
+        
+        if links:
+            self.links_list = links_list
+
         return diag_bondlist
     
     def get_anyonbonds(self): 
