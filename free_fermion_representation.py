@@ -200,18 +200,26 @@ class FermionicGaussianRepresentation:
 
 		return exp_value_e/exp_value_0
 	
-	def majorana_density_0(self, indices):
+	#for not it is clear that the current density does not work as it should. This could be related to the amibiguity in the 
+	#definition of the occupation number of the fermion dependent on a certain bond orientation! 
+# %%
+
+#%%
+	
+	def majorana_density_0(self, indices): # I should add link terms here, but for now I assume all phi_jk = 1
 		"""
 		returns n_jk = (1 - i phi_jk c_j c_k)/2
 
 		with indices = [j,k]
 
+		assumption: all phi_jk = 1
+
 		"""
 		j, k = indices
 
-		return (1 - 1j * self.Cov_0[j,k])/2.
+		return (1 - self.Cov_0[j,k])/2.
 	
-	def total_majorana_density(self, index):
+	def total_majorana_density(self, index, standard = False):
 		"""
 		given index j,
 		returns n_j =  Σ_{i!=j} n_ij
@@ -219,29 +227,63 @@ class FermionicGaussianRepresentation:
 		j = index
 		n_j = 0
 
-		for i in range(self.model.Nsites):
-			if i < j:
-				n_j += self.majorana_density_0([i,j])
-			if i > j:
-				_, y_i = self.model.id_to_idxidy(i) 
-				_, y_j = self.model.id_to_idxidy(j)
-				if y_i == y_j:
+		if standard == False:
+			for i in range(self.model.Nsites):
+				if i != j:
+					x_i, _ = self.model.id_to_idxidy(i)
+					x_j, _ = self.model.id_to_idxidy(j)
+
+					if x_i < x_j:
+						n_j += self.majorana_density_0([i,j])
+					else:
+						n_j += self.majorana_density_0([j,i])
+		else:
+			for i in range(self.model.Nsites):
+				if i !=j:
 					n_j += self.majorana_density_0([j,i])
-				else:
-					n_j += self.majorana_density_0([i,j])
+
+		# n_j = np.sum(self.Cov_0[j, :]) - self.Cov_0[j, j] #this is equivalent to the above loop
+		# n_j = (1 - n_j)/2. #this is the same as above, but it is not necessary to divide by 2 here, since we are summing over all i!=j
 		return n_j
-
-
 	
-
+	def current_density(self, standard = False):
+		current_sites = self.model.get_current_sites()
+		current_density = []
+		for i in current_sites:
+			current_density.append(self.total_majorana_density(i, standard = standard))
 		
-def floquet_operator(hx, hy, hz, T, alpha = -1):
-	t = T*np.pi/4.
-	Rx = expm(alpha*hx*t*4)
-	Ry = expm(alpha*hy*t*4)
-	Rz = expm(alpha*hz*t*4)
-	R = Rz @ Ry @ Rx 
-	return Rx, Ry, Rz, R
+		return current_density
+#%%
+	
+	def floquet_operator_ham(self, T = 1, alpha = -1, anyon = False):
+		t = T*np.pi/4.
+		if anyon:
+			hx = self.he_x; hy = self.he_y; hz = self.he_z
+		else:
+			hx = self.h0_x; hy = self.h0_y; hz = self.h0_z
+		Rx = expm(alpha*hx*t*4)
+		Ry = expm(alpha*hy*t*4)
+		Rz = expm(alpha*hz*t*4)
+		R = Rz @ Ry @ Rx 
+		return Rx, Ry, Rz, R
+	
+	
+	
+def floquet_operator(Op, t, alpha = -1):
+	"""
+	Calculates R = e^alpha 4ht, given h matrix of majorana operator
+	"""
+	return expm(alpha*Op*t*4)
+
+# def floquet_operator(hx, hy, hz, T = 1, alpha = -1):
+# 	t = T*np.pi/4.
+
+# 	Rx = expm(alpha*hx*t*4)
+# 	Ry = expm(alpha*hy*t*4)
+# 	Rz = expm(alpha*hz*t*4)
+# 	R = Rz @ Ry @ Rx 
+# 	return Rx, Ry, Rz, R
+
 
 
 def u_config(model, type=None):
@@ -313,18 +355,21 @@ def generate_h_Majorana(model, Jxx=1.0, Jyy=1.0, Jzz=1.0, type=None):
 			
 	return h
 
-def generate_disorder_term(model, cov, delta, type = None):
+def generate_disorder_term(model, cov, delta, type = None, disc = False):
 	"""
 	Disorder Potential is given by:
 
-	V = - i Σ_phi delta_phi phi_ij (γ_i γ_j - γ_j γ_i) = - i Σ_{i,j} (h_dis_ij γ_i γ_j + h_dis_ji γ_j γ_i)
+	V = i Σ_phi delta_phi phi_ij (γ_i γ_j - γ_j γ_i) = i Σ_{i,j} (h_dis_ij γ_i γ_j + h_dis_ji γ_j γ_i)
 	with the combination (i,j) counted only once in the sum
 	here i,j are the diagonal sites and phi indicates the bond we are considering
 
 	"""
-	diagonal_bonds = model.get_diagonalbonds(edge = True)
+	#sarebbe da aggiungere links degli edges nella funzione diagonal bonds a classe obc!
+	diagonal_bonds = model.get_diagonalbonds(disc = disc)
 	links_list = model.links_list
 	values_list = []
+
+	h_dis = np.zeros((model.Nsites, model.Nsites), dtype=np.complex128)
 
 
 	if type == "Anyon":
@@ -335,12 +380,13 @@ def generate_disorder_term(model, cov, delta, type = None):
 				value *=u[i,j]
 			values_list.append(value) 
 
+		for idx, (i,j) in enumerate(diagonal_bonds):
+			rand_num = np.random.uniform(-delta, delta)
+			h_dis[i,j] = rand_num * values_list[idx] * cov[i,j]
 
-	h_dis = np.zeros((model.Nsites, model.Nsites), dtype=np.complex128)
-	
-	for idx, (i,j) in enumerate(diagonal_bonds):
+	for i,j in diagonal_bonds:
 		rand_num = np.random.uniform(-delta, delta)
-		h_dis[i,j] = rand_num * values_list[idx] * cov[i,j]
+		h_dis[i,j] = rand_num * cov[i,j]
 
 	h_dis = h_dis - h_dis.T
 
@@ -367,7 +413,7 @@ def build_covariance_matrix(model, diagonalcov = True):
 				Cov[i, j] = model.cov_value[idx]
 		else:
 			for i, j in diag_bonds:
-				Cov[i, j] = + 1
+				Cov[i, j] = 1
 				# Cov[j, i] = - 1
 	else:
 		for i,j in zz_bonds:
@@ -380,14 +426,14 @@ def build_covariance_matrix(model, diagonalcov = True):
 
 
 
-if __name__ == '__main__':
-	n = 16
-	g = 1
+# if __name__ == '__main__':
+# 	n = 16
+# 	g = 1
 
-	Hmaj = generate_h_Majorana(g, n)
+# 	Hmaj = generate_h_Majorana(g, n)
 
-	FGH = FermionicGaussianRepresentation(Hmaj)
+# 	FGH = FermionicGaussianRepresentation(Hmaj)
 
-	Cov = FGH.covariance_matrix_ground_state()
+# 	Cov = FGH.covariance_matrix_ground_state()
 
 # %%

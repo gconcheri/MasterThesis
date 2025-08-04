@@ -90,27 +90,27 @@ def plot_honeycomb(model,
         anyon_bonds = model.get_anyonbonds()[0]
         for i, j in anyon_bonds:
             plt.plot([coords[i, 0], coords[j, 0]], [coords[i, 1], coords[j, 1]],
-                     color='magenta', lw=5, label='anyon bond' if (i, j) == anyon_bonds[0] else "", zorder=4)
+                     color='magenta', lw=5, label='anyon bond' if (i, j) == anyon_bonds[0] else "", zorder=2)
 
     #plot diagonal bonds if requested
     if plot_diagonal_bonds:
         diag_bonds = model.get_diagonalbonds()
         for i, j in diag_bonds:
             plt.plot([coords[i, 0], coords[j, 0]], [coords[i, 1], coords[j, 1]],
-                     color='purple', lw=2, label='diagonal bond' if (i, j) == diag_bonds[0] else "", zorder=4)    
+                     color='purple', lw=2, label='diagonal bond' if (i, j) == diag_bonds[0] else "", zorder=2)    
 
     #plot other bonds if requested
     if otherbonds_list is not None:
         for i, j in otherbonds_list:
             plt.plot([coords[i, 0], coords[j, 0]], [coords[i, 1], coords[j, 1]],
-                     color='pink', lw=3, label='other links' if (i, j) == otherbonds_list[0] else "", zorder=4)
+                     color='pink', lw=3, label='other links' if (i, j) == otherbonds_list[0] else "", zorder=2)
     
     if nonzeropairs is not None and Cov is not None:
         for i, j in nonzeropairs:
             value = abs(Cov[i, j])
             # Scale the linewidth for better visibility (adjust the multiplier as needed)
             lw = 1 + 5 * value
-            plt.plot([coords[i, 0], coords[j, 0]],[coords[i, 1], coords[j, 1]],color='orange',lw=lw,zorder=5)
+            plt.plot([coords[i, 0], coords[j, 0]],[coords[i, 1], coords[j, 1]],color='orange',lw=lw,zorder=2)
 
     plt.axis('equal')
     plt.axis('off')
@@ -190,7 +190,7 @@ def plot_honeycomb_cylinder(
                 ax.plot([coords[i, 0], coords[j, 0]],
                         [coords[i, 1], coords[j, 1]],
                         [coords[i, 2], coords[j, 2]],
-                        color='magenta', lw=5, zorder=4)
+                        color='magenta', lw=5, zorder=1)
         # Plot diagonal bonds if requested
         if plot_diagonal_bonds:
             diag_bonds = model.get_diagonalbonds()
@@ -198,7 +198,7 @@ def plot_honeycomb_cylinder(
                 ax.plot([coords[i, 0], coords[j, 0]],
                         [coords[i, 1], coords[j, 1]],
                         [coords[i, 2], coords[j, 2]],
-                        color='green', lw=2, zorder=4)
+                        color='green', lw=2, zorder=1)
         ax.set_axis_off()
         ax.view_init(elev=elev, azim=azim)
         # Imposta limiti assi per evitare "schiacciamento"

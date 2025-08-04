@@ -199,14 +199,23 @@ class SitesOBC(BaseSites):
         
         return xx_bondlist, yy_bondlist, zz_bondlist
     
-    def get_diagonalbonds(self, links = True):
+    def get_diagonalbonds(self, links = True, disc = False):
         """
         Returns a list of diagonal bonds in the honeycomb lattice.
-        Diagonal bonds connect sites in different sublattices (A and B) that are diagonally adjacent.
+        Diagonal bonds in the bulk connect sites in different sublattices (A and B) that are diagonally adjacent.
         i.e. bonds connecting site from the top left corner of a plaquette to the bottom right corner of the same plaquette.
+
+        If links is True, it also returns a list of links that connect the sites in the diagonal bonds.
+
+        If disc is True, it will not include the diagonal bonds that connect the sites in the central plaquette to the rest of the 
+        lattice, in order to form a Corbino disc
         """
+
         diag_bondlist = []
         links_list = []
+
+        if disc and (self.Npy != self.Npx or self.Npy % 2 == 0 or self.Npy == 1):  
+            raise AssertionError("Npx and Npy must both be equal, odd and greater than 1")
 
         for i, id in enumerate(self.ids_A):
             idx, idy = self.id_to_idxidy(id)
@@ -215,21 +224,32 @@ class SitesOBC(BaseSites):
                     diag_id = self.idxidy_to_id(idx + 2, idy + 1)
                     down_id = diag_id -2
                     centre_id = diag_id-1
-                    diag_bondlist.append([id, diag_id])
-                    links_list.append([[id,down_id], [down_id, centre_id], [diag_id, centre_id]])
                 elif idy == self.Nyrows - 2:    # we are in the second last row
                     if self.Npy % 2 == 0:
                         diag_id = self.idxidy_to_id(idx + 1, idy + 1)
                         down_id = diag_id -2
                         centre_id = diag_id-1
-                        diag_bondlist.append([id, diag_id])
-                        links_list.append([[id,down_id], [down_id, centre_id], [diag_id, centre_id]])
                     else:
                         diag_id = self.idxidy_to_id(idx + 2, idy + 1)
                         down_id = diag_id -2
                         centre_id = diag_id-1
+
+                if disc:
+                    y_disc = self.Nyrows/2-1
+
+                    if y_disc % 2 == 0:
+                        x_disc = self.Npx-1
+                    else:
+                        x_disc = self.Npx
+    
+                    if id != self.idxidy_to_id(x_disc, y_disc) and idy != self.Nyrows - 1:
+                        diag_bondlist.append([id, diag_id])
+                        links_list.append([[id, down_id], [down_id, centre_id], [diag_id, centre_id]])
+                else:
+                    if idy != self.Nyrows - 1:      
                         diag_bondlist.append([id, diag_id])
                         links_list.append([[id,down_id], [down_id, centre_id], [diag_id, centre_id]])
+
 
         if self.edge:
             if self.Npy != self.Npx or self.Npy % 2 == 0 or self.Npy == 1:  
@@ -237,29 +257,36 @@ class SitesOBC(BaseSites):
             # Add diagonal bonds for the last row
             for id in self.ids_B[:self.Npx-2:2]:
                 diag_bondlist.append([id, id+2])
+                links_list.append([[id+1,id], [id+1, id+2]])
             
             id = self.ids_B[self.Npx-1]
             diag_bondlist.append([id, id+1])
+            links_list.append([[id, id+1]])
+
 
             for y in range(self.Npy)[1::2]:
                 id = self.idxidy_to_id(0,y)
                 id_down = self.idxidy_to_id(1,y+1)
                 diag_bondlist.append([id, id_down])
-                x = self.Nxsites_2 -1
+                links_list.append([[id+1, id], [id+1,id_down]])
+
+                x = self.Nxsites_2 - 1
                 id = self.idxidy_to_id(x, y)
                 id_down = self.idxidy_to_id(x-1, y+1)
                 diag_bondlist.append([id, id_down])
+                links_list.append([[id, id_down+1], [id_down,id_down+1]])
             
             for id in self.ids_A[-self.Npx+1::2]:
                 diag_bondlist.append([id, id+2])
+                links_list.append([[id,id+1], [id+2, id+1]])
 
             id = self.ids_B[-self.Npx-1]
             diag_bondlist.append([id, id+1])
-            
+            links_list.append([[id+1, id]])
         
         if links:
             self.links_list = links_list
-
+        
         return diag_bondlist
     
     def get_anyonbonds(self): 
@@ -407,7 +434,6 @@ class SitesOBC(BaseSites):
 
         return prefactor, indeces_list, links_list
 
-                    
 
     def get_prefactor(self):
         M = self.Npx - (self.Npy+1)//2 #in this way if Npy even: I get Npy/2, if odd I get (Npy+1)/2
@@ -434,6 +460,27 @@ class SitesOBC(BaseSites):
         # print("D ", D)
         
         return D*(-1)**(A+C)
+    
+    def get_current_sites(self):
+        if self.Npy != self.Npx or self.Npy % 2 == 0 or self.Npy == 1:
+            raise AssertionError("Npx and Npy must both be equal, odd and greater than 1")
+
+        # Returns a list of the site indices to use in the calculation of the current
+
+        current_list = []
+
+        y = self.Nyrows/2
+        if y % 2 == 1:
+            x = self.Nxsites_2/2
+        else:
+            x = self.Nxsites_2/2 + 1
+
+        while x < self.Nxsites_2:
+            current_list.append(int(self.idxidy_to_id(x,y)))
+            x += 2
+        
+        return current_list
+    
 
 
 
@@ -447,7 +494,7 @@ class SitesProtBonds(BaseSites):
         super().__init__(Npx, Npy)
         
         #Take values from old class which I will need to define same values for new class:
-        self.obc_model = SitesOBC(Npx,Npy, index = index)
+        self.obc_model = SitesOBC(Npx,Npy, index = index, edge = False)
 
         # Protruding bonds specific initialization
 
@@ -540,6 +587,8 @@ class SitesProtBonds(BaseSites):
     def get_diagonalbonds(self, cov = True):
         diagonalbonds_OBC = self.obc_model.get_diagonalbonds()
         diagonalbonds = []
+        #cov_value specifies values of covariance matrix cov[i,j] given diagbond [i,j] 
+        # in order for it to coincide with E.D. psi_e state defined in ed_vs_fgs 
         cov_value = []
         
         diagonalbonds = diagonalbonds + self.OBClist_translation(diagonalbonds_OBC)
@@ -599,7 +648,6 @@ class SitesProtBonds(BaseSites):
         indeces_list = self.OBClist_translation(indeces_list)
         links_list = self.OBClist_translation(links_list)        
         return prefactor, indeces_list, links_list
-
 
     
     def OBClist_translation(self, lst):
