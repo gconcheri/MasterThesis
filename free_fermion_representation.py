@@ -2,6 +2,7 @@ import numpy as np
 from scipy import sparse
 from scipy.linalg import expm
 from pfapack import pfaffian as pf
+from numba import njit
 
 #for now, Omega, Corr don't work as they should!
 
@@ -77,7 +78,7 @@ class FermionicGaussianRepresentation:
 	#%%	
 
 	def update_cov_e_matrix(self, R):
-		self.Cov_e = R @self.Cov_e@ R.T
+		self.Cov_e = R @self.Cov_e @ R.T
 
 	def update_cov_0_matrix(self, R):
 		self.Cov_0 = R @self.Cov_0 @ R.T
@@ -355,6 +356,7 @@ def generate_h_Majorana(model, Jxx=1.0, Jyy=1.0, Jzz=1.0, type=None):
 			
 	return h
 
+#for now this term works only for OBC class!
 def generate_disorder_term(model, cov, delta, type = None, disc = False):
 	"""
 	Disorder Potential is given by:
@@ -364,8 +366,10 @@ def generate_disorder_term(model, cov, delta, type = None, disc = False):
 	here i,j are the diagonal sites and phi indicates the bond we are considering
 
 	"""
-	#sarebbe da aggiungere links degli edges nella funzione diagonal bonds a classe obc!
-	diagonal_bonds = model.get_diagonalbonds(disc = disc)
+
+	diagonal_bonds = model.get_diagonalbonds()
+
+
 	links_list = model.links_list
 	values_list = []
 
@@ -424,6 +428,10 @@ def build_covariance_matrix(model, diagonalcov = True):
 
 	return Cov
 
+
+# @njit #only works with purely numpy arrays!
+# def cov_update(Cov, R):
+#     return R @ Cov @ R.T
 
 
 # if __name__ == '__main__':

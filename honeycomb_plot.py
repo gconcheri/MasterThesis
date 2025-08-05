@@ -8,7 +8,7 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 def plot_honeycomb(model, 
                     fig_size=(20,20), 
-                    highlight_idxidy=None, sites=None, highlight_color='orange', #inputs to highlight sites
+                    highlight_idxidy=None, sites=None, dotsize = 300, highlight_color='orange', #inputs to highlight sites
                     plaquette_site= None, #input to shade a certain plaquette with lowest site= plaquette_site
                     loop = False,
                     plot_anyon_bonds=False, #input to draw anyon bonds
@@ -70,7 +70,7 @@ def plot_honeycomb(model,
     #Highlight a list of sites if requested
     if sites is not None:
         for site_id in sites:
-            plt.scatter(coords[site_id, 0], coords[site_id, 1], color=highlight_color, s=300, zorder=5, label='highlighted sites')
+            plt.scatter(coords[site_id, 0], coords[site_id, 1], color=highlight_color, s=dotsize, zorder=5, label='highlighted sites')
 
     # Plot bonds:
 
