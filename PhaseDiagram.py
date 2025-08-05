@@ -5,51 +5,19 @@ import Class_site as site
 import free_fermion_representation as f
 import pickle
 
+from numba import njit
+from joblib import Parallel, delayed
 
 
+#function used to compute order parameter for number of floquet cycles = N_cycles 
+# at a specific disorder delta and coupling/time term T
 
-def fourier_time(t_series, dt, sigma = 0.4, nw=4, gauss = True):
-    """ Calculates the FFT of a time series, applying either a Gaussian window function if gauss = True, or a cosine if gauss = False. """
+def order_parameter_delta_T_method1(model, fgs, delta, T, N_cycles):
+    result = []
 
-    # Gaussian or cosine window function
-    n = len(t_series)
-    t_list = np.arange(n)*dt
+    return result
 
-    if gauss == True:
-        gauss = [np.exp(-1/2.*(i/(sigma * n))**2) for i in np.arange(n)]
-        input_series = gauss * t_series
-    else:
-        Wfunlist = [np.cos(np.pi*t_list[t]/(2*t_list[-1]))**nw  for t in range(n)]
-        input_series = Wfunlist * t_series
-
-    # Fourier transform
-    ft = np.fft.fft(input_series) / np.sqrt(n)
-    freqs = np.fft.fftfreq(n, dt) * 2 * np.pi 
-
-    # order frequencies in increasing order
-    end = np.argmin(freqs)
-    freqs = np.append(freqs[end:], freqs[:end])
-
-
-    # Take into account the additional minus sign in the time FT
-    ft = np.append(ft, ft[0])
-    ft = ft[::-1]
-    ft = ft[:-1]
-
-    ft_0 = ft[0]
-
-    if n % 2 == 1:
-        freqs += np.pi*(n-1)/n
-        ft_pi = (ft[(n-1)//2]+ft[(n+1)//2])/2 # // even though (n-1)/2 is always integer it will yield n.0, I use // to force it to be integer
-    else:
-        freqs += np.pi
-        ft_pi = ft[n//2]
-
-    return freqs, ft, ft_0, ft_pi
-
-
-
-def order_parameter_delta_T(model, fgs, delta, T, N_cycles):
+def order_parameter_delta_T_method2(model, fgs, delta, T, N_cycles):
 
     fgs.reset_cov_0_matrix()
     fgs.reset_cov_e_matrix()
@@ -81,18 +49,84 @@ def order_parameter_delta_T(model, fgs, delta, T, N_cycles):
     result.append(fgs.order_parameter())
  
     return result
-    
-def order_parameter(model, T_list, delta_list, N_cycles):
+
+
+
+@njit
+def gaussian_window(n, sigma):
+    window = np.empty(n)
+    for i in range(n):
+        window[i] = np.exp(-0.5 * (i / (sigma * n)) ** 2)
+    return window
+
+@njit
+def cosine_window(n, t_list, nw):
+    window = np.empty(n)
+    for t in range(n):
+        window[t] = np.cos(np.pi * t_list[t] / (2 * t_list[-1])) ** nw
+    return window
+
+def fourier_time(t_series, dt, sigma = 0.4, nw=4, gauss = True):
+    """ Calculates the FFT of a time series, applying either a Gaussian window function if gauss = True, or a cosine if gauss = False. """
+
+    # Gaussian or cosine window function
+    n = len(t_series)
+    t_list = np.arange(n)*dt
+
+    if gauss:
+        window = gaussian_window(n, sigma)
+    else:
+        window = cosine_window(n, t_list, nw)
+
+    input_series = window * t_series
+
+    # Fourier transform
+    ft = np.fft.fft(input_series) / np.sqrt(n)
+
+    # Take into account the additional minus sign in the time FT
+    ft = np.append(ft, ft[0])
+    ft = ft[::-1]
+    ft = ft[:-1]
+
+    ft_0 = ft[0]
+
+    if n % 2 == 1:
+        ft_pi = (ft[(n-1)//2]+ft[(n+1)//2])/2 # // even though (n-1)/2 is always integer it will yield n.0, I use // to force it to be integer
+    else:
+        ft_pi = ft[n//2]
+
+    return ft, ft_0, ft_pi
+
+def frequencies(n, dt=1):
+    freqs = np.fft.fftfreq(n, dt) * 2 * np.pi 
+
+    # order frequencies in increasing order
+    end = np.argmin(freqs)
+    freqs = np.append(freqs[end:], freqs[:end])
+
+    if n % 2 == 1:
+        freqs += np.pi*(n-1)/n
+    else:
+        freqs += np.pi
+
+    return freqs
+
+# "slow" algorithm to create 2d phase diagram
+#%%
+
+def order_parameter(model, T_list, delta_list, N_cycles, method = '1'):
     fgs = f.FermionicGaussianRepresentation(model)
     data_grid = np.empty((len(delta_list), len(T_list)), dtype=object)
 
     for i, delta in enumerate(delta_list):
         for j, T in enumerate(T_list):
             print("delta: ", delta, ";   T: ", T)
-            
-            orderpar = order_parameter_delta_T(model, fgs, delta, T, N_cycles)
-            freqs, ft, ft_0, ft_pi = fourier_time(np.array(orderpar), 1)
+            if method == '1':
+                orderpar = order_parameter_delta_T_method1(model, fgs, delta, T, N_cycles)
+            else: 
+                orderpar = order_parameter_delta_T_method2(model, fgs, delta, T, N_cycles)
 
+            ft, ft_0, ft_pi = fourier_time(np.array(orderpar), 1)
 
             result = np.abs(ft_pi) - np.abs(ft_0)
 
@@ -101,12 +135,66 @@ def order_parameter(model, T_list, delta_list, N_cycles):
                 'op_ft' : ft, 
                 'result': result
             }
-    return freqs, np.arange(N_cycles), data_grid
+
+    freqs = frequencies(N_cycles+1)
+
+    return freqs, np.arange(N_cycles+1), data_grid
+#%%
+
+#FAST algorithm!
+#%%
+def compute_order_param_entry(delta, T, model, N_cycles, method = '1'):
+    # Recreate fgs inside the function (safer for multiprocessing)
+    fgs = f.FermionicGaussianRepresentation(model)
+
+    if method == '1':
+        orderpar = order_parameter_delta_T_method1(model, fgs, delta, T, N_cycles)
+    else:
+        orderpar = order_parameter_delta_T_method2(model, fgs, delta, T, N_cycles)
+    ft, ft_0, ft_pi = fourier_time(np.array(orderpar), 1)
+    result = np.abs(ft_pi) - np.abs(ft_0)
+
+    return delta, T, {
+        'op_real': orderpar,
+        'op_ft': ft,
+        'result': result
+    }
+
+#n_jobs = -1 uses all CPU cores! if I want to limit it I can put e.g. n_jobs = 4
+def order_parameter_parallel(model, T_list, delta_list, N_cycles, n_jobs=-1, method = '1'): 
+    # Launch parallel computation across all (delta, T) pairs
+    results = Parallel(n_jobs=n_jobs)(
+        delayed(compute_order_param_entry)(delta, T, model, N_cycles, method)
+        for delta in delta_list
+        for T in T_list
+    )
+
+    # Allocate result grid
+    data_grid = np.empty((len(delta_list), len(T_list)), dtype=object)
+    delta_idx = {d: i for i, d in enumerate(delta_list)}
+    T_idx = {t: j for j, t in enumerate(T_list)}
+
+    # delta_list = [0.0, 0.1, 0.2]
+    # T_list = [0.1, 0.2, 0.3]
+
+    # delta_idx = {0.0: 0, 0.1: 1, 0.2: 2}
+    # T_idx     = {0.1: 0, 0.2: 1, 0.3: 2}
+
+    for delta, T, entry in results:
+        i = delta_idx[delta]
+        j = T_idx[T]
+        data_grid[i, j] = entry
+
+    freqs = frequencies(N_cycles+1)
 
 
+    return freqs, np.arange(N_cycles+1), data_grid
+
+#%%
 
 
-def plot_order_parameter_results(data_grid, T_list, delta_list, figsize = (8,6)):
+#function to plot the 2d phase diagram!
+def plot_phase_diagram(data_grid, T_list, delta_list, figsize = (8,6)):
     # Extract the 2D array of 'result'
     Z = np.array([
         [data_grid[i, j]['result'] for j in range(len(T_list))]
@@ -131,6 +219,9 @@ def plot_order_parameter_results(data_grid, T_list, delta_list, figsize = (8,6))
     plt.show()
 
 
+
+#functions to save or load arrays!
+
 def save_file(obj, name, doit = True):
     if doit:
         with open(f'{name}.pkl', 'wb') as file:
@@ -141,6 +232,11 @@ def load_file(name, doit = True):
         with open(f'{name}.pkl', 'rb') as f:
             obj = pickle.load(f)
     return obj
+
+
+
+
+
 
 
 
@@ -155,7 +251,7 @@ def main():
     delta = 0
     T = 0.7
     N_cycles = 10
-    result = order_parameter_delta_T(model, fgs, delta=delta, T=T, N_cycles=N_cycles)
+    result = order_parameter_delta_T_method2(model, fgs, delta=delta, T=T, N_cycles=N_cycles)
 
 if __name__ == "__main__":
     with open("profile_output.txt", "w") as logfile:
@@ -170,3 +266,5 @@ if __name__ == "__main__":
 
 # otherwise use:
 # python -m cProfile -s cumtime your_script.py 
+
+# %%
