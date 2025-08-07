@@ -4,10 +4,15 @@ import matplotlib.pyplot as plt
 import Class_site as site
 import free_fermion_representation as f
 import pickle
+import os
+
+from tqdm import tqdm 
+from itertools import product
 
 from numba import njit
 from joblib import Parallel, delayed
 
+#%% order_parameter_delta_T functions
 
 #function used to compute order parameter for number of floquet cycles = N_cycles 
 # at a specific disorder delta and coupling/time term T
@@ -40,17 +45,27 @@ def order_parameter_delta_T_method2(model, fgs, delta, T, N_cycles):
     Rz_e = f.floquet_operator(-np.pi/4*fgs.he_z + Ve, T, alpha = 1)
     Re = Rz_e @ Ry_e @ Rx_e
 
-    result = []
+    orderpar = []
+    loop_0 = []
+    loop_e = []
     
     for _ in range(N_cycles):
-        result.append(fgs.order_parameter())
+        op, value_0, value_e = fgs.order_parameter()
+        orderpar.append(op)
+        loop_0.append(value_0)
+        loop_e.append(value_e)
         fgs.update_cov_0_matrix(R0)
         fgs.update_cov_e_matrix(Re)
-    result.append(fgs.order_parameter())
- 
-    return result
+
+    op, value_0, value_e = fgs.order_parameter()
+    orderpar.append(op)
+    loop_0.append(value_0)
+    loop_e.append(value_e) 
+    return orderpar, loop_0, loop_e
 
 
+
+#%% Fourier transform
 
 @njit
 def gaussian_window(n, sigma):
@@ -111,8 +126,11 @@ def frequencies(n, dt=1):
 
     return freqs
 
-# "slow" algorithm to create 2d phase diagram
-#%%
+
+#%% "slow" algorithm to create 2d phase diagram
+
+#algorithm that calculates 1 function (o.p.) per single T and delta
+#can be cancelled probably
 
 def order_parameter(model, T_list, delta_list, N_cycles, method = '1'):
     fgs = f.FermionicGaussianRepresentation(model)
@@ -122,15 +140,17 @@ def order_parameter(model, T_list, delta_list, N_cycles, method = '1'):
         for j, T in enumerate(T_list):
             print("delta: ", delta, ";   T: ", T)
             if method == '1':
-                orderpar = order_parameter_delta_T_method1(model, fgs, delta, T, N_cycles)
+                orderpar, loop_0, loop_e = order_parameter_delta_T_method1(model, fgs, delta, T, N_cycles)
             else: 
-                orderpar = order_parameter_delta_T_method2(model, fgs, delta, T, N_cycles)
+                orderpar, loop_0, loop_e = order_parameter_delta_T_method2(model, fgs, delta, T, N_cycles)
 
             ft, ft_0, ft_pi = fourier_time(np.array(orderpar), 1)
 
             result = np.abs(ft_pi) - np.abs(ft_0)
 
             data_grid[i, j] = {
+                'loop_0' : loop_0, #expectation value of loop with no anyon
+                'loop_e' : loop_e, #expectation value of loop with e anyon
                 'op_real': orderpar,
                 'op_ft' : ft, 
                 'result': result
@@ -139,60 +159,268 @@ def order_parameter(model, T_list, delta_list, N_cycles, method = '1'):
     freqs = frequencies(N_cycles+1)
 
     return freqs, np.arange(N_cycles+1), data_grid
-#%%
 
-#FAST algorithm!
-#%%
-def compute_order_param_entry(delta, T, model, N_cycles, method = '1'):
+
+
+#algorithm that calculates N_shots functions (o.p.) per combination (T,delta), 
+# and then averages eta(pi) - eta(o) over these N_shots
+
+def order_parameter_shots(model, T_list, delta_list, N_shots = 10, N_cycles = 10, method = '1'):
+    fgs = f.FermionicGaussianRepresentation(model)
+    data_grid = np.empty((len(delta_list), len(T_list)), dtype=object)
+
+    for i, delta in enumerate(tqdm(delta_list, desc="Deltas")):
+        for j, T in enumerate(tqdm(T_list, desc=f"T for delta={delta}", leave=False)):
+            # print("delta: ", delta, ";   T: ", T)
+            if delta == 0 or N_shots < 2: 
+                #no need to average when delta = 0 because no random disorder is added in this case!
+                #if N_shots = 0 this is just the old algorithm
+
+                if method == '1':
+                    orderpar, loop_0, loop_e = order_parameter_delta_T_method1(model, fgs, delta, T, N_cycles)
+                else: 
+                    orderpar, loop_0, loop_e = order_parameter_delta_T_method2(model, fgs, delta, T, N_cycles)
+
+                ft, ft_0, ft_pi = fourier_time(np.array(orderpar), 1)
+
+                result = np.abs(ft_pi) - np.abs(ft_0)
+            
+                data_grid[i, j] = {
+                    'loop_0' : loop_0, #expectation value of loop with no anyon
+                    'loop_e' : loop_e, #expectation value of loop with e anyon
+                    'op_real': orderpar,
+                    'op_ft' : ft, 
+                    'result': result
+                }
+            else:
+
+                loop_0_list = []
+                loop_e_list = []
+                orderpar_list = []
+                op_ft_list = []
+                result_list = []
+
+                for _ in range(N_shots):
+                    print("delta: ", delta, ";   T: ", T)
+                    if method == '1':
+                        orderpar, loop_0, loop_e = order_parameter_delta_T_method1(model, fgs, delta, T, N_cycles)
+                    else: 
+                        orderpar, loop_0, loop_e = order_parameter_delta_T_method2(model, fgs, delta, T, N_cycles)
+
+                    ft, ft_0, ft_pi = fourier_time(np.array(orderpar), 1)
+
+                    result_list.append(np.abs(ft_pi) - np.abs(ft_0))
+                    loop_0_list.append(loop_0)
+                    loop_e_list.append(loop_e)
+                    orderpar_list.append(orderpar)
+                    op_ft_list.append(ft)
+            
+                result = np.mean(result_list)
+                
+                data_grid[i, j] = {
+                    'loop_0' : loop_0_list, #expectation value of loop with no anyon
+                    'loop_e' : loop_e_list, #expectation value of loop with e anyon
+                    'op_real': orderpar_list,
+                    'op_ft' : op_ft_list, 
+                    'result': result
+                }
+
+
+
+    freqs = frequencies(N_cycles+1)
+
+    return freqs, np.arange(N_cycles+1), data_grid
+
+
+#%% FAST algorithm!
+
+def compute_single_shot(model, T, delta, N_cycles, method = '1'):
     # Recreate fgs inside the function (safer for multiprocessing)
     fgs = f.FermionicGaussianRepresentation(model)
 
     if method == '1':
-        orderpar = order_parameter_delta_T_method1(model, fgs, delta, T, N_cycles)
+        orderpar, loop_0, loop_e= order_parameter_delta_T_method1(model, fgs, delta, T, N_cycles)
     else:
-        orderpar = order_parameter_delta_T_method2(model, fgs, delta, T, N_cycles)
+        orderpar, loop_0, loop_e = order_parameter_delta_T_method2(model, fgs, delta, T, N_cycles)
+
     ft, ft_0, ft_pi = fourier_time(np.array(orderpar), 1)
     result = np.abs(ft_pi) - np.abs(ft_0)
 
-    return delta, T, {
+    return {
+        'loop_0' : loop_0, #expectation value of loop with no anyon
+        'loop_e' : loop_e, #expectation value of loop with e anyon        
         'op_real': orderpar,
         'op_ft': ft,
         'result': result
     }
 
-#n_jobs = -1 uses all CPU cores! if I want to limit it I can put e.g. n_jobs = 4
-def order_parameter_parallel(model, T_list, delta_list, N_cycles, n_jobs=-1, method = '1'): 
-    # Launch parallel computation across all (delta, T) pairs
-    results = Parallel(n_jobs=n_jobs)(
-        delayed(compute_order_param_entry)(delta, T, model, N_cycles, method)
-        for delta in delta_list
-        for T in T_list
+def compute_order_param_entry(model, T, delta, N_cycles, N_shots, method='1', save_dir=None):
+    if delta == 0 or N_shots < 2:
+            #no need to average when delta = 0 because no random disorder is added in this case!
+            #if N_shots = 0 this is just the old algorithm
+        
+        entry = compute_single_shot(model, T, delta, N_cycles, method)
+
+    
+    else:
+        shot_results = Parallel(n_jobs=-1)(
+            delayed(compute_single_shot)(model, T, delta, N_cycles, method)
+            for _ in range(N_shots)
+        )
+
+        loop_0_list = [r['loop_0'] for r in shot_results]
+        loop_e_list = [r['loop_e'] for r in shot_results]
+        orderpar_list = [r['op_real'] for r in shot_results]
+        op_ft_list = [r['op_ft'] for r in shot_results]
+        result_list = [r['result'] for r in shot_results]
+
+        avg_result = np.mean(result_list)
+
+        entry = {
+            'loop_0': loop_0_list,
+            'loop_e': loop_e_list,
+            'op_real': orderpar_list,
+            'op_ft': op_ft_list,
+            'result': avg_result
+        }
+
+    if save_dir is not None:
+        os.makedirs(save_dir, exist_ok=True)
+        fname = f"delta_{delta:.5f}_T_{T:.5f}.pkl"
+        fpath = os.path.join(save_dir, fname)
+        with open(fpath, 'wb') as f:
+            pickle.dump(entry, f)
+
+    return delta, T, entry
+
+
+def order_parameter_parallel(model, T_list, delta_list, N_cycles, N_shots=1, n_jobs=-1, method='1', save_dir=None):
+    tasks = []
+    desc = f"Computing {(len(delta_list) * len(T_list))} (delta, T) points"
+    
+    for delta, T in tqdm(product(delta_list, T_list), desc=desc):
+        fname = f"delta_{delta:.5f}_T_{T:.5f}.pkl"
+        fpath = os.path.join(save_dir, fname) if save_dir else None
+
+        # Check if already computed
+        if save_dir is not None and os.path.exists(fpath):
+            # Load immediately and skip compute
+            with open(fpath, 'rb') as f:
+                entry = pickle.load(f)
+            tasks.append((delta, T, entry))
+        else:
+            # Mark for computation
+            tasks.append((delta, T, None))
+
+    # Split tasks
+    to_compute = [t for t in tasks if t[2] is None]
+    already_done = [t for t in tasks if t[2] is not None]
+
+    # Compute missing entries in parallel
+    computed_results = Parallel(n_jobs=n_jobs)(
+        delayed(compute_order_param_entry)(model, T, delta, N_cycles, N_shots, method, save_dir)
+        for (delta, T, _) in tqdm(to_compute, desc="Computing missing entries")
     )
 
-    # Allocate result grid
+    # Merge results
+    all_results = already_done + computed_results
+
+    # Rebuild grid
     data_grid = np.empty((len(delta_list), len(T_list)), dtype=object)
     delta_idx = {d: i for i, d in enumerate(delta_list)}
     T_idx = {t: j for j, t in enumerate(T_list)}
 
+    for delta, T, entry in all_results:
+        i = delta_idx[delta]
+        j = T_idx[T]
+        data_grid[i, j] = entry
+
+    freqs = frequencies(N_cycles + 1)
+    return freqs, np.arange(N_cycles + 1), data_grid
+
+
+#%% Alternative fast algorithm
+#OTHER WAY OF DOING ALGORITHM, while keeping track of computed and non computed results!
+# (I wanted to keep it to learn another way of doing it)
+
+def compute_order_param_entry_otherversion(delta, T, model, N_cycles, N_shots, method='1', save_dir=None):
+
+    # Optional: skip if already computed
+    if save_dir is not None:
+        os.makedirs(save_dir, exist_ok=True)
+        fname = f"delta_{delta:.5f}_T_{T:.5f}.pkl"
+        fpath = os.path.join(save_dir, fname)
+        if os.path.exists(fpath):
+            with open(fpath, 'rb') as f:
+                entry = pickle.load(f)
+            return delta, T, entry
+
+    # Compute N_shots
+    shot_results = Parallel(n_jobs=-1)(
+        delayed(compute_single_shot)(model, delta, T, N_cycles, method)
+        for _ in range(N_shots)
+    )
+
+    #Aggregate results
+    loop_0_list = [r['loop_0'] for r in shot_results]
+    loop_e_list = [r['loop_e'] for r in shot_results]
+    orderpar_list = [r['op_real'] for r in shot_results]
+    op_ft_list = [r['op_ft'] for r in shot_results]
+    result_list = [r['result'] for r in shot_results]
+
+    avg_result = np.mean(result_list)
+
+    entry = {
+        'loop_0': loop_0_list,
+        'loop_e': loop_e_list,
+        'op_real': orderpar_list,
+        'op_ft': op_ft_list,
+        'result': avg_result
+    }
+
+    # Save to disk if save_dir is provided
+    if save_dir is not None:
+        with open(fpath, 'wb') as f:
+            pickle.dump(entry, f)
+
+    return delta, T, entry
+
+#n_jobs = -1 uses all CPU cores! if I want to limit it I can put e.g. n_jobs = 4
+def order_parameter_parallel_otherversion(model, T_list, delta_list, N_cycles, N_shots=1, n_jobs=-1, method='1', save_dir = None):
+    
+    to_compute = [(delta, T) for delta in delta_list for T in T_list]
+
+    
+    # Parallelize across (delta, T) pairs
+    results = Parallel(n_jobs=n_jobs)(
+        delayed(compute_order_param_entry_otherversion)(delta, T, model, N_cycles, N_shots, method, save_dir)
+        for delta, T in tqdm(to_compute, desc=r"Computing ($\Delta$, T) pairs")
+    )
+
+    # Fill grid
+    data_grid = np.empty((len(delta_list), len(T_list)), dtype=object)
+    delta_idx = {d: i for i, d in enumerate(delta_list)}
+    T_idx = {t: j for j, t in enumerate(T_list)}
+
+    #e.g.
     # delta_list = [0.0, 0.1, 0.2]
     # T_list = [0.1, 0.2, 0.3]
 
     # delta_idx = {0.0: 0, 0.1: 1, 0.2: 2}
     # T_idx     = {0.1: 0, 0.2: 1, 0.3: 2}
 
+
     for delta, T, entry in results:
         i = delta_idx[delta]
         j = T_idx[T]
         data_grid[i, j] = entry
 
-    freqs = frequencies(N_cycles+1)
+    freqs = frequencies(N_cycles + 1)
+
+    return freqs, np.arange(N_cycles + 1), data_grid
 
 
-    return freqs, np.arange(N_cycles+1), data_grid
-
-#%%
-
-
+#%% #PLOTS:
 #function to plot the 2d phase diagram!
 def plot_phase_diagram(data_grid, T_list, delta_list, figsize = (8,6)):
     # Extract the 2D array of 'result'
@@ -218,9 +446,11 @@ def plot_phase_diagram(data_grid, T_list, delta_list, figsize = (8,6)):
     plt.tight_layout()
     plt.show()
 
+# def plot(delta_target, T_target):
+
+#%% #functions to save or load arrays!
 
 
-#functions to save or load arrays!
 
 def save_file(obj, name, doit = True):
     if doit:
@@ -231,15 +461,32 @@ def load_file(name, doit = True):
     if doit:
         with open(f'{name}.pkl', 'rb') as f:
             obj = pickle.load(f)
-    return obj
+        return obj
+    
+
+
+def load_saved_results(delta_list, T_list, save_dir):
+    data_grid = np.empty((len(delta_list), len(T_list)), dtype=object)
+    delta_idx = {d: i for i, d in enumerate(delta_list)}
+    T_idx = {t: j for j, t in enumerate(T_list)}
+
+    for delta in delta_list:
+        for T in T_list:
+            fname = f"delta_{delta:.5f}_T_{T:.5f}.pkl"
+            fpath = os.path.join(save_dir, fname)
+            if os.path.exists(fpath):
+                with open(fpath, 'rb') as f:
+                    entry = pickle.load(f)
+                i = delta_idx[delta]
+                j = T_idx[T]
+                data_grid[i, j] = entry
+
+    return data_grid
 
 
 
 
-
-
-
-
+#%% profile output of the "order_parameter_delta_T"
 import cProfile 
 import pstats
 
@@ -267,4 +514,3 @@ if __name__ == "__main__":
 # otherwise use:
 # python -m cProfile -s cumtime your_script.py 
 
-# %%

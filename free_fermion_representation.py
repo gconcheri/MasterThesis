@@ -199,7 +199,7 @@ class FermionicGaussianRepresentation:
 
 		exp_value_0, exp_value_e = self.expectation_value_loop(small_loop=small_loop)
 
-		return exp_value_e/exp_value_0
+		return exp_value_e/exp_value_0, exp_value_0, exp_value_e
 	
 	#for not it is clear that the current density does not work as it should. This could be related to the amibiguity in the 
 	#definition of the occupation number of the fermion dependent on a certain bond orientation! 
@@ -432,6 +432,7 @@ def build_covariance_matrix(model, diagonalcov = True):
 # @njit #only works with purely numpy arrays!
 # def cov_update(Cov, R):
 #     return R @ Cov @ R.T
+
 
 
 # if __name__ == '__main__':
