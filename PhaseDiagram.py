@@ -18,9 +18,35 @@ from joblib import Parallel, delayed
 # at a specific disorder delta and coupling/time term T
 
 def order_parameter_delta_T_method1(model, fgs, delta, T, N_cycles):
-    result = []
+    orderpar = []
+    loop_0 = []
+    loop_e = []
 
-    return result
+    fgs.reset_cov_0_matrix()
+    fgs.reset_cov_e_matrix()
+
+    _, _, _, R0 = fgs.floquet_operator_ham(T)
+    _, _, _, Re = fgs.floquet_operator_ham(T, anyon=True)
+    V0 = f.generate_disorder_term(model, fgs.Cov, delta)
+    Ve = f.generate_disorder_term(model, fgs.Cov, delta, type="Anyon")
+    R_V0 = f.floquet_operator(V0, T, alpha = 1)
+    R_Ve = f.floquet_operator(Ve, T, alpha = 1)
+
+    for _ in range(N_cycles):
+        op, value_0, value_e = fgs.order_parameter()
+        orderpar.append(op)
+        loop_0.append(value_0)
+        loop_e.append(value_e)
+        fgs.update_cov_0_matrix(R_V0 @ R0)
+        fgs.update_cov_e_matrix(R_Ve @ Re)
+
+    op, value_0, value_e = fgs.order_parameter()
+    orderpar.append(op)
+    loop_0.append(value_0)
+    loop_e.append(value_e) 
+
+    return orderpar, loop_0, loop_e
+
 
 def order_parameter_delta_T_method2(model, fgs, delta, T, N_cycles):
 
@@ -436,7 +462,8 @@ def plot_phase_diagram(data_grid, T_list, delta_list, figsize = (8,6)):
     im = plt.imshow(Z, aspect='auto', origin='lower', 
                     extent=[T_list[0]-deltaT, T_list[-1]+deltaT, delta_list[0]-deltadelta, delta_list[-1]+deltadelta],
                     interpolation='none', 
-                    cmap = 'inferno')
+                    #cmap = 'inferno'
+                    )
     
     plt.colorbar(im, label=r'$|\eta(π)| - |\eta(0)|$')
     plt.xlabel('T')
