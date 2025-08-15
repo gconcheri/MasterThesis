@@ -199,23 +199,19 @@ class SitesOBC(BaseSites):
         
         return xx_bondlist, yy_bondlist, zz_bondlist
     
-    def get_diagonalbonds(self, links = True, disc = False):
+    def get_diagonalbonds(self, links = True, edgepar = None):
         """
         Returns a list of diagonal bonds in the honeycomb lattice.
         Diagonal bonds in the bulk connect sites in different sublattices (A and B) that are diagonally adjacent.
         i.e. bonds connecting site from the top left corner of a plaquette to the bottom right corner of the same plaquette.
 
         If links is True, it also returns a list of links that connect the sites in the diagonal bonds.
-
-        If disc is True, it will not include the diagonal bonds that connect the sites in the central plaquette to the rest of the 
-        lattice, in order to form a Corbino disc
         """
+
 
         diag_bondlist = []
         links_list = []
 
-        if disc and (self.Npy != self.Npx or self.Npy % 2 == 0 or self.Npy == 1):  
-            raise AssertionError("Npx and Npy must both be equal, odd and greater than 1")
 
         for i, id in enumerate(self.ids_A):
             idx, idy = self.id_to_idxidy(id)
@@ -224,34 +220,26 @@ class SitesOBC(BaseSites):
                     diag_id = self.idxidy_to_id(idx + 2, idy + 1)
                     down_id = diag_id -2
                     centre_id = diag_id-1
+                    diag_bondlist.append([id, diag_id])
+                    links_list.append([[id,down_id], [down_id, centre_id], [diag_id, centre_id]])
                 elif idy == self.Nyrows - 2:    # we are in the second last row
                     if self.Npy % 2 == 0:
                         diag_id = self.idxidy_to_id(idx + 1, idy + 1)
                         down_id = diag_id -2
                         centre_id = diag_id-1
+                        diag_bondlist.append([id, diag_id])
+                        links_list.append([[id,down_id], [down_id, centre_id], [diag_id, centre_id]])
                     else:
                         diag_id = self.idxidy_to_id(idx + 2, idy + 1)
                         down_id = diag_id -2
                         centre_id = diag_id-1
-
-                if disc:
-                    y_disc = self.Nyrows/2-1
-
-                    if y_disc % 2 == 0:
-                        x_disc = self.Npx-1
-                    else:
-                        x_disc = self.Npx
-    
-                    if id != self.idxidy_to_id(x_disc, y_disc) and idy != self.Nyrows - 1:
-                        diag_bondlist.append([id, diag_id])
-                        links_list.append([[id, down_id], [down_id, centre_id], [diag_id, centre_id]])
-                else:
-                    if idy != self.Nyrows - 1:      
                         diag_bondlist.append([id, diag_id])
                         links_list.append([[id,down_id], [down_id, centre_id], [diag_id, centre_id]])
 
+        if edgepar == None:
+            edgepar = self.edge
 
-        if self.edge:
+        if edgepar:
             if self.Npy != self.Npx or self.Npy % 2 == 0 or self.Npy == 1:  
                 raise AssertionError("Npx and Npy must both be equal, odd and greater than 1")
             # Add diagonal bonds for the last row
@@ -584,7 +572,7 @@ class SitesProtBonds(BaseSites):
         anyonbonds_OBC = self.obc_model.get_anyonbonds()
         return self.OBClist_translation(anyonbonds_OBC[0]), anyonbonds_OBC[1], anyonbonds_OBC[2], anyonbonds_OBC[3]
     
-    def get_diagonalbonds(self, cov = True):
+    def get_diagonalbonds(self, cov = True, edgepar = None):
         diagonalbonds_OBC = self.obc_model.get_diagonalbonds()
         diagonalbonds = []
         #cov_value specifies values of covariance matrix cov[i,j] given diagbond [i,j] 
@@ -594,7 +582,10 @@ class SitesProtBonds(BaseSites):
         diagonalbonds = diagonalbonds + self.OBClist_translation(diagonalbonds_OBC)
         cov_value = [1 for _ in diagonalbonds_OBC]
 
-        if self.edge:
+        if edgepar == None:
+            edgepar = self.edge
+
+        if edgepar:
             for id in range(self.Npx):
                 x, y = self.id_to_idxidy(id)
                 id_down = self.idxidy_to_id(x,y+1)

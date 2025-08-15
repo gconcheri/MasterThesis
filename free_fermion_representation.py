@@ -357,17 +357,17 @@ def generate_h_Majorana(model, Jxx=1.0, Jyy=1.0, Jzz=1.0, type=None):
 	return h
 
 #for now this term works only for OBC class!
-def generate_disorder_term(model, cov, delta, type = None, disc = False):
+def generate_disorder_term(model, cov, delta, type = None, edgepar = None):
 	"""
 	Disorder Potential is given by:
 
-	V = i Σ_phi delta_phi phi_ij (γ_i γ_j - γ_j γ_i) = i Σ_{i,j} (h_dis_ij γ_i γ_j + h_dis_ji γ_j γ_i)
+	V = i Σ_phi delta_phi phi_ij / 2 (γ_i γ_j - γ_j γ_i) = i Σ_{i,j} (h_dis_ij γ_i γ_j + h_dis_ji γ_j γ_i)
 	with the combination (i,j) counted only once in the sum
 	here i,j are the diagonal sites and phi indicates the bond we are considering
 
 	"""
 
-	diagonal_bonds = model.get_diagonalbonds()
+	diagonal_bonds = model.get_diagonalbonds(edgepar = edgepar)
 
 
 	links_list = model.links_list
@@ -386,11 +386,11 @@ def generate_disorder_term(model, cov, delta, type = None, disc = False):
 
 		for idx, (i,j) in enumerate(diagonal_bonds):
 			rand_num = np.random.uniform(-delta, delta)
-			h_dis[i,j] = rand_num * values_list[idx] * cov[i,j]
+			h_dis[i,j] = rand_num * values_list[idx] * cov[i,j] * 0.5 
 
 	for i,j in diagonal_bonds:
 		rand_num = np.random.uniform(-delta, delta)
-		h_dis[i,j] = rand_num * cov[i,j]
+		h_dis[i,j] = rand_num * cov[i,j] * 0.5
 
 	h_dis = h_dis - h_dis.T
 
