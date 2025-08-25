@@ -13,7 +13,6 @@ from itertools import product
 
 from numba import njit
 from joblib import Parallel, delayed
-from multiprocessing import Manager
 
 
 #%% order_parameter_delta_T functions
@@ -43,8 +42,11 @@ def order_parameter_delta_T_method1(model, fgs, delta, T, N_cycles, edgepar = No
         orderpar.append(op)
         loop_0.append(value_0)
         loop_e.append(value_e)
-        fgs.update_cov_0_matrix(R_V0 @ R0)
+        fgs.update_cov_0_matrix(R_V0 @ R0) 
         fgs.update_cov_e_matrix(R_Ve @ Re)
+        # this approach requires 3*N^3 operations 
+        #vs doing 2 consecutive updates update(R0) -> update(R_V0) = 4*N^3 operations!
+        #so the way we are doing it is computationally favorable
 
     op, value_0, value_e = fgs.order_parameter()
     orderpar.append(op)
@@ -227,7 +229,7 @@ def compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, method = '1
 
 #function to obtain phase diagram without parallelization
 
-def phase_diagram_slow(model, T_list, delta_list, N_shots = 10, N_cycles = 10, method = '1', save_dir = None, edgepar = None):
+def phase_diagram_slow(model, T_list, delta_list, N_shots = 10, N_cycles = 10, method = '1', save_dir = None, general_dir = "phasediagram_slow", edgepar = None):
     fgs = f.FermionicGaussianRepresentation(model)
     data_grid = np.empty((len(delta_list), len(T_list)), dtype=object)
 
@@ -236,7 +238,7 @@ def phase_diagram_slow(model, T_list, delta_list, N_shots = 10, N_cycles = 10, m
         for i, delta in enumerate(tqdm(delta_list, desc="Deltas")):
             for j, T in enumerate(tqdm(T_list, desc=f"T for delta={delta}", leave=False)):
         
-                    full_dir = os.path.join("phasediagram_slow", save_dir)
+                    full_dir = os.path.join(general_dir, save_dir)
                     os.makedirs(full_dir, exist_ok=True)
                     fname = f"delta_{delta:.5f}_T_{T:.5f}.pkl"
                     fpath = os.path.join(full_dir, fname)
@@ -325,13 +327,13 @@ def compute_order_param_entry(model, T, delta, N_cycles, N_shots, method='1', sa
     return delta, T, entry
 
 
-def phase_diagram_fast(model, T_list, delta_list, N_cycles, N_shots=1, n_jobs=-1, method='1', save_dir=None, edgepar = None):
+def phase_diagram_fast(model, T_list, delta_list, N_cycles, N_shots=1, n_jobs=-1, method='1', save_dir=None, general_dir = "phasediagram_fast", edgepar = None):
     tasks = []
     desc = f"Computing {(len(delta_list) * len(T_list))} (delta, T) points"
     
     for delta, T in tqdm(product(delta_list, T_list), desc=desc):
         fname = f"delta_{delta:.5f}_T_{T:.5f}.pkl"
-        fpath = os.path.join("phasediagram_fast", os.path.join(save_dir, fname)) if save_dir else None
+        fpath = os.path.join(general_dir, os.path.join(save_dir, fname)) if save_dir else None
 
         # Check if already computed
         if save_dir is not None and os.path.exists(fpath):
@@ -453,7 +455,10 @@ def phase_diagram_fast_otherversion(model, T_list, delta_list, N_cycles, N_shots
 
 #%% #PLOTS:
 #function to plot the 2d phase diagram!
-def plot_phase_diagram(data_grid, T_list, delta_list, figsize = (8,6)):
+def plot_phase_diagram(data_grid, T_list, delta_list, figsize = None):
+
+    if figsize == None:
+        figsize = (len(T_list), len(delta_list))
     # Extract the 2D array of 'result'
     Z = np.array([
         [data_grid[i, j]['result'] for j in range(len(T_list))]
@@ -480,7 +485,7 @@ def plot_phase_diagram(data_grid, T_list, delta_list, figsize = (8,6)):
 
 # def plot(delta_target, T_target):
 
-#%% #functions to save or load arrays!
+#%% functions to save or load arrays!
 
 
 
