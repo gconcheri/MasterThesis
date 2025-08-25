@@ -365,11 +365,11 @@ def generate_disorder_term(model, cov, delta, type = None, edgepar = None):
 	with the combination (i,j) counted only once in the sum
 	here i,j are the diagonal sites and phi indicates the bond we are considering
 
+	edgepar can be True or False, if it's None, then the edge parameter inserted when defining the model is considered
+
 	"""
 
 	diagonal_bonds = model.get_diagonalbonds(edgepar = edgepar)
-
-
 	links_list = model.links_list
 	values_list = []
 
