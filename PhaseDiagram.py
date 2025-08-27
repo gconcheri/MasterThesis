@@ -22,7 +22,7 @@ from joblib import Parallel, delayed
 
 #good idea would be to unify method1 and method2
 
-def order_parameter_delta_T_method1(model, fgs, delta, T, N_cycles, edgepar = None):
+def order_parameter_delta_T_method1(model, fgs, T, delta, N_cycles, edgepar = None):
     orderpar = []
     loop_0 = []
     loop_e = []
@@ -56,7 +56,7 @@ def order_parameter_delta_T_method1(model, fgs, delta, T, N_cycles, edgepar = No
     return orderpar, loop_0, loop_e
 
 
-def order_parameter_delta_T_method2(model, fgs, delta, T, N_cycles, edgepar = None):
+def order_parameter_delta_T_method2(model, fgs, T, delta, N_cycles, edgepar = None):
 
     fgs.reset_cov_0_matrix()
     fgs.reset_cov_e_matrix()
@@ -189,9 +189,9 @@ def compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, method = '1
         #if N_shots = 0 this is just the old algorithm
 
         if method == '1':
-            orderpar, loop_0, loop_e = order_parameter_delta_T_method1(model, fgs, delta, T, N_cycles, edgepar = edgepar)
+            orderpar, loop_0, loop_e = order_parameter_delta_T_method1(model, fgs, T, delta,  N_cycles, edgepar = edgepar)
         else: 
-            orderpar, loop_0, loop_e = order_parameter_delta_T_method2(model, fgs, delta, T, N_cycles, edgepar = edgepar)
+            orderpar, loop_0, loop_e = order_parameter_delta_T_method2(model, fgs, T, delta,  N_cycles, edgepar = edgepar)
 
         ft, ft_0, ft_pi = fourier_time(np.array(orderpar), 1, normalize = normalize)
 
@@ -215,9 +215,9 @@ def compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, method = '1
 
         for _ in tqdm(range(N_shots), desc= f"Shots per delta = {delta:.3f}, T = {T:.3f})", leave = False):
             if method == '1':
-                orderpar, loop_0, loop_e = order_parameter_delta_T_method1(model, fgs, delta, T, N_cycles, edgepar = edgepar)
+                orderpar, loop_0, loop_e = order_parameter_delta_T_method1(model, fgs, T, delta,  N_cycles, edgepar = edgepar)
             else: 
-                orderpar, loop_0, loop_e = order_parameter_delta_T_method2(model, fgs, delta, T, N_cycles, edgepar = edgepar)
+                orderpar, loop_0, loop_e = order_parameter_delta_T_method2(model, fgs, T, delta,  N_cycles, edgepar = edgepar)
 
             ft, ft_0, ft_pi = fourier_time(np.array(orderpar), 1, normalize = normalize)
 
@@ -290,9 +290,9 @@ def compute_single_shot(model, T, delta, N_cycles, method = '1', edgepar = None,
     fgs = f.FermionicGaussianRepresentation(model)
 
     if method == '1':
-        orderpar, loop_0, loop_e= order_parameter_delta_T_method1(model, fgs, delta, T, N_cycles, edgepar = edgepar)
+        orderpar, loop_0, loop_e= order_parameter_delta_T_method1(model, fgs, T, delta,  N_cycles, edgepar = edgepar)
     else:
-        orderpar, loop_0, loop_e = order_parameter_delta_T_method2(model, fgs, delta, T, N_cycles, edgepar = edgepar)
+        orderpar, loop_0, loop_e = order_parameter_delta_T_method2(model, fgs, T, delta,  N_cycles, edgepar = edgepar)
 
     ft, ft_0, ft_pi = fourier_time(np.array(orderpar), 1, normalize = normalize)
     result = np.abs(ft_pi) - np.abs(ft_0)
@@ -396,7 +396,7 @@ def phase_diagram_fast(model, T_list, delta_list, N_cycles, N_shots=1, n_jobs=-1
 #OTHER WAY OF DOING ALGORITHM, while keeping track of computed and non computed results!
 # (I wanted to keep it to learn another way of doing it)
 
-def compute_order_param_entry_otherversion(delta, T, model, N_cycles, N_shots, method='1', save_dir=None):
+def compute_order_param_entry_otherversion(T, delta,  model, N_cycles, N_shots, method='1', save_dir=None):
 
     # Optional: skip if already computed
     if save_dir is not None:
@@ -410,7 +410,7 @@ def compute_order_param_entry_otherversion(delta, T, model, N_cycles, N_shots, m
 
     # Compute N_shots
     shot_results = Parallel(n_jobs=-1)(
-        delayed(compute_single_shot)(model, delta, T, N_cycles, method)
+        delayed(compute_single_shot)(model, T, delta,  N_cycles, method)
         for _ in range(N_shots)
     )
 
@@ -446,7 +446,7 @@ def phase_diagram_fast_otherversion(model, T_list, delta_list, N_cycles, N_shots
     
     # Parallelize across (delta, T) pairs
     results = Parallel(n_jobs=n_jobs)(
-        delayed(compute_order_param_entry_otherversion)(delta, T, model, N_cycles, N_shots, method, save_dir)
+        delayed(compute_order_param_entry_otherversion)(T, delta,  model, N_cycles, N_shots, method, save_dir)
         for delta, T in tqdm(to_compute, desc=r"Computing ($\Delta$, T) pairs")
     )
 
@@ -532,10 +532,129 @@ def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = Non
 
 def plot_phase_diagram(T_list, delta_list, save_dir, type = "fast", figsize = None, result = "standard"):
     data_grid = load_saved_results(T_list, delta_list, save_dir, type = "fast")
-    plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = figsize, result = result)
+    plot_phase_diagram_fromdatagrid(data_grid[:len(delta_list), :len(T_list)], T_list, delta_list, figsize = figsize, result = result)
 
 
-# def plot(delta_target, T_target):
+
+def plot_single_entry_from_datagrid_1(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = "op_real", figsize = (12,5)):
+    entry = data_grid[delta_idx, T_idx]
+
+    floquet_cycles = np.arange(N_cycles + 1)
+    freqs = frequencies(N_cycles + 1)
+
+    if entry is None:
+        print(f"No data available for Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}")
+        return
+
+    plt.figure(figsize=figsize)
+
+    if name == "op_real" or name == "loop_0" or name == "loop_e":
+        if delta_idx == 0:
+            plt.plot(floquet_cycles, entry[name])
+            plt.xlabel('Floquet Cycles')
+            plt.ylabel('Order Parameter' if name == "op_real" else 'Loop Expectation Value ' + (' (no anyon)' if name == "loop_0" else ' (e anyon)'))
+        else: 
+            for shot in entry[name]:
+                plt.plot(floquet_cycles, shot, label=f'shot = {entry[name].index(shot)+1}')
+            plt.legend()
+
+        plt.xlabel('Floquet Cycles')
+        plt.ylabel('Order Parameter' if name == "op_real" else 'Loop Expectation Value ' + (' (no anyon)' if name == "loop_0" else ' (e anyon)'))
+        plt.title(f'Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}')
+        plt.show()
+    elif name == "op_ft":
+        if delta_idx == 0:
+            plt.plot(freqs, np.abs(entry[name]))
+            plt.xlabel('Frequency')
+            plt.ylabel('Fourier Transform')
+        else:
+            for shot in entry[name]:
+                plt.plot(freqs, np.abs(shot), label=f'shot = {entry[name].index(shot)+1}')
+            plt.legend()
+
+        plt.xlabel('Frequency')
+        plt.ylabel('Fourier Transform')
+        plt.title(f'Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}')
+        plt.show()
+
+def plot_single_entry_from_datagrid_2(
+    data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name="op_real", figsize=(12, 5), shot_idx=None
+):
+    entry = data_grid[delta_idx, T_idx]
+    floquet_cycles = np.arange(N_cycles + 1)
+    freqs = frequencies(N_cycles + 1)
+
+    if entry is None:
+        print(f"No data available for Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}")
+        return
+
+    plt.figure(figsize=figsize)
+
+    def plot_shots(data, x, ylabel):
+        if shot_idx is not None:
+            if 0 <= shot_idx < len(data):
+                plt.plot(x, data[shot_idx], label=f'Shot {shot_idx+1}')
+                plt.legend()
+            else:
+                print(f"shot_idx {shot_idx} out of range (max {len(data)-1})")
+                return
+        else:
+            for i, shot in enumerate(data):
+                plt.plot(x, shot, label=f'Shot {i+1}')
+            plt.legend()
+        plt.xlabel('Floquet Cycles' if ylabel != 'Fourier Transform' else 'Frequency')
+        plt.ylabel(ylabel)
+        plt.title(f'Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}')
+        plt.tight_layout()
+        plt.show()
+
+    if name in ["op_real", "loop_0", "loop_e"]:
+        ylabel = {
+            "op_real": "Order Parameter",
+            "loop_0": "Loop Expectation Value (no anyon)",
+            "loop_e": "Loop Expectation Value (e anyon)"
+        }[name]
+        data = entry[name]
+        if delta_idx == 0 or not isinstance(data, list):
+            plt.plot(floquet_cycles, data)
+            plt.xlabel('Floquet Cycles')
+            plt.ylabel(ylabel)
+            plt.title(f'Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}')
+            plt.tight_layout()
+            plt.show()
+        else:
+            plot_shots(data, floquet_cycles, ylabel)
+    elif name == "op_ft":
+        data = entry[name]
+        ylabel = "Fourier Transform"
+        if delta_idx == 0 or not isinstance(data, list):
+            plt.plot(freqs, np.abs(data))
+            plt.xlabel('Frequency')
+            plt.ylabel(ylabel)
+            plt.title(f'Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}')
+            plt.tight_layout()
+            plt.show()
+        else:
+            plot_shots([np.abs(shot) for shot in data], freqs, ylabel)
+
+
+def plot_single_entry(delta, T, T_list, delta_list, save_dir, type = "fast", N_cycles = 10, name = "op_real", figsize = (12,5), shot_idx = None):
+    data_grid = load_saved_results(T_list, delta_list, save_dir, type = "fast")
+    if delta in delta_list and T in T_list:
+        delta_idx = delta_list.index(delta)
+        T_idx = T_list.index(T)
+        plot_single_entry_from_datagrid_2(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, shot_idx = shot_idx)
+    else:
+        print("Provided delta or T not in the respective list.")
+        return
+    
+#plot all T for a fixed delta
+def plot_all_T_fixed_delta(data_grid, delta_idx, T_list, delta_list, N_cycles, name = "op_real", figsize = (12,5)):
+    floquet_cycles = np.arange(N_cycles + 1)
+
+    for T_idx in range(len(T_list)):
+        plot_single_entry_from_datagrid_2(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize)
+
 
 #%% functions to save or load arrays!
 
