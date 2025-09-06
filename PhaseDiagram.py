@@ -242,7 +242,7 @@ def compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, method = '1
 
 #function to obtain phase diagram without parallelization
 
-def phase_diagram_slow(model, T_list, delta_list, N_shots = 10, N_cycles = 10, method = '1', save_dir = None, general_dir = "phasediagram_slow", edgepar = None, normalize = False):
+def phase_diagram_slow(model, T_list, delta_list, N_shots = 10, N_cycles = 10, method = '1', save_dir = None, general_dir = "phasediagram", edgepar = None, normalize = False):
     """ Computes the phase diagram over a grid of T and delta values, optionally saving results to disk. """
 
     fgs = f.FermionicGaussianRepresentation(model)
@@ -262,7 +262,7 @@ def phase_diagram_slow(model, T_list, delta_list, N_shots = 10, N_cycles = 10, m
                         with open(fpath, 'rb') as ffile:
                             data_grid[i,j] = pickle.load(ffile)
                     else:
-                        data_grid[i,j] = compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, method = '1', edgepar = edgepar, normalize = normalize)
+                        data_grid[i,j] = compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, method = method, edgepar = edgepar, normalize = normalize)
                         # Save to disk if save_dir is provided
                         with open(fpath, 'wb') as ffile:
                             pickle.dump(data_grid[i,j], ffile)
@@ -272,7 +272,7 @@ def phase_diagram_slow(model, T_list, delta_list, N_shots = 10, N_cycles = 10, m
         for i, delta in enumerate(tqdm(delta_list, desc="Deltas")):
             for j, T in enumerate(tqdm(T_list, desc=f"T for delta={delta}", leave=False)):
                 
-                data_grid[i,j] = compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, method = '1', edgepar = edgepar, normalize = normalize)
+                data_grid[i,j] = compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, method = method, edgepar = edgepar, normalize = normalize)
 
 
     freqs = frequencies(N_cycles+1)
@@ -305,7 +305,7 @@ def compute_single_shot(model, T, delta, N_cycles, method = '1', edgepar = None,
         'result': result
     }
 
-def compute_order_param_entry(model, T, delta, N_cycles, N_shots, method='1', save_dir=None, edgepar = None, normalize = False):
+def compute_order_param_entry(model, T, delta, N_cycles, N_shots, method='1', save_dir=None, general_dir = "phasediagram", edgepar = None, normalize = False):
     """ Computes a single entry in the data grid for given T and delta, averaging over N_shots if necessary. """
     if delta == 0 or N_shots < 2:
             #no need to average when delta = 0 because no random disorder is added in this case!
@@ -336,7 +336,7 @@ def compute_order_param_entry(model, T, delta, N_cycles, N_shots, method='1', sa
         }
 
     if save_dir is not None:
-        full_dir = os.path.join("phasediagram_fast", save_dir)
+        full_dir = os.path.join(general_dir, save_dir)
         os.makedirs(full_dir, exist_ok=True)
         fname = f"delta_{delta:.5f}_T_{T:.5f}.pkl"
         fpath = os.path.join(full_dir, fname)
@@ -345,8 +345,7 @@ def compute_order_param_entry(model, T, delta, N_cycles, N_shots, method='1', sa
 
     return delta, T, entry
 
-
-def phase_diagram_fast(model, T_list, delta_list, N_cycles, N_shots=1, n_jobs=-1, method='1', save_dir=None, general_dir = "phasediagram_fast", edgepar = None, normalize = False):
+def phase_diagram_fast(model, T_list, delta_list, N_cycles, N_shots=1, n_jobs=-1, method='1', save_dir=None, general_dir = "phasediagram", edgepar = None, normalize = False):
     """ Computes the phase diagram over a grid of T and delta values, optionally saving results to disk. """
     tasks = []
     desc = f"Computing {(len(delta_list) * len(T_list))} (delta, T) points"
@@ -371,7 +370,7 @@ def phase_diagram_fast(model, T_list, delta_list, N_cycles, N_shots=1, n_jobs=-1
 
     # Compute missing entries in parallel
     computed_results = Parallel(n_jobs=n_jobs)(
-        delayed(compute_order_param_entry)(model, T, delta, N_cycles, N_shots, method, save_dir, edgepar, normalize)
+        delayed(compute_order_param_entry)(model, T, delta, N_cycles, N_shots, method, save_dir, general_dir, edgepar, normalize)
         for (delta, T, _) in tqdm(to_compute, desc="Computing missing entries")
     )
 
@@ -486,6 +485,7 @@ def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = Non
             [data_grid[i, j]['result'] for j in range(len(T_list))]
             for i in range(len(delta_list))
         ])
+
     elif result == "ratio":
         # Extract the 2D array of ratio |eta(pi)|/|eta(0)| using ft_0_and_ft_pi
         def get_ratio(op_ft, bool_log = bool_log):
@@ -547,8 +547,8 @@ def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = Non
     plt.show()
 
 
-def plot_phase_diagram(T_list, delta_list, save_dir, type = "fast", figsize = None, result = "standard", bool_log = False, vmin = None, vmax = None, save = False, save_dir_image = None, filename = None):
-    data_grid = load_saved_results(T_list, delta_list, save_dir, type = "fast")
+def plot_phase_diagram(T_list, delta_list, save_dir, general_dir = "phasediagram", figsize = None, result = "standard", bool_log = False, vmin = None, vmax = None, save = False, save_dir_image = None, filename = None):
+    data_grid = load_saved_results(T_list, delta_list, save_dir, general_dir = general_dir)
     if filename is None:
         filename = save_dir + f"_{result}"
         if bool_log:
@@ -560,49 +560,7 @@ def plot_phase_diagram(T_list, delta_list, save_dir, type = "fast", figsize = No
     plot_phase_diagram_fromdatagrid(data_grid[:len(delta_list), :len(T_list)], T_list, delta_list, figsize = figsize, result = result, bool_log = bool_log, vmin = vmin, vmax = vmax, 
                                     save = save, save_dir = save_dir_image, filename = filename)
 
-
-def plot_single_entry_from_datagrid_1(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = "op_real", figsize = (12,5)):
-    entry = data_grid[delta_idx, T_idx]
-
-    floquet_cycles = np.arange(N_cycles + 1)
-    freqs = frequencies(N_cycles + 1)
-
-    if entry is None:
-        print(f"No data available for Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}")
-        return
-
-    plt.figure(figsize=figsize)
-
-    if name == "op_real" or name == "loop_0" or name == "loop_e":
-        if delta_idx == 0:
-            plt.plot(floquet_cycles, entry[name])
-            plt.xlabel('Floquet Cycles')
-            plt.ylabel('Order Parameter' if name == "op_real" else 'Loop Expectation Value ' + (' (no anyon)' if name == "loop_0" else ' (e anyon)'))
-        else: 
-            for shot in entry[name]:
-                plt.plot(floquet_cycles, shot, label=f'shot = {entry[name].index(shot)+1}')
-            plt.legend()
-
-        plt.xlabel('Floquet Cycles')
-        plt.ylabel('Order Parameter' if name == "op_real" else 'Loop Expectation Value ' + (' (no anyon)' if name == "loop_0" else ' (e anyon)'))
-        plt.title(f'Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}')
-        plt.show()
-    elif name == "op_ft":
-        if delta_idx == 0:
-            plt.plot(freqs, np.abs(entry[name]))
-            plt.xlabel('Frequency')
-            plt.ylabel('Fourier Transform')
-        else:
-            for shot in entry[name]:
-                plt.plot(freqs, np.abs(shot), label=f'shot = {entry[name].index(shot)+1}')
-            plt.legend()
-
-        plt.xlabel('Frequency')
-        plt.ylabel('Fourier Transform')
-        plt.title(f'Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}')
-        plt.show()
-
-def plot_single_entry_from_datagrid_2(
+def plot_single_entry_from_datagrid(
     data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name="op_real", figsize=(12, 5), shot_idx=None
 ):
     entry = data_grid[delta_idx, T_idx]
@@ -662,12 +620,12 @@ def plot_single_entry_from_datagrid_2(
         else:
             plot_shots([np.abs(shot) for shot in data], freqs, ylabel)
 
-def plot_single_entry(delta, T, T_list, delta_list, save_dir, type = "fast", N_cycles = 10, name = "op_real", figsize = (12,5), shot_idx = None):
-    data_grid = load_saved_results(T_list, delta_list, save_dir, type = "fast")
+def plot_single_entry(delta, T, T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10, name = "op_real", figsize = (12,5), shot_idx = None):
+    data_grid = load_saved_results(T_list, delta_list, save_dir, general_dir = general_dir)
     if delta in delta_list and T in T_list:
         delta_idx = delta_list.index(delta)
         T_idx = T_list.index(T)
-        plot_single_entry_from_datagrid_2(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, shot_idx = shot_idx)
+        plot_single_entry_from_datagrid(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, shot_idx = shot_idx)
     else:
         print("Provided delta or T not in the respective list.")
         return
@@ -677,7 +635,7 @@ def plot_all_T_fixed_delta(data_grid, delta_idx, T_list, delta_list, N_cycles, n
     floquet_cycles = np.arange(N_cycles + 1)
 
     for T_idx in range(len(T_list)):
-        plot_single_entry_from_datagrid_2(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize)
+        plot_single_entry_from_datagrid(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize)
 
 
 #%% functions to save or load arrays!
@@ -696,7 +654,7 @@ def load(name, doit = True):
     
 
 
-def load_saved_results(T_list, delta_list, save_dir, type = "fast"):
+def load_saved_results(T_list, delta_list, save_dir, general_dir = "phasediagram"):
     data_grid = np.empty((len(delta_list), len(T_list)), dtype=object)
     delta_idx = {d: i for i, d in enumerate(delta_list)}
     T_idx = {t: j for j, t in enumerate(T_list)}
@@ -705,10 +663,7 @@ def load_saved_results(T_list, delta_list, save_dir, type = "fast"):
         for T in T_list:
             fname = f"delta_{delta:.5f}_T_{T:.5f}.pkl"
 
-            if type == "fast":
-                full_dir = os.path.join("phasediagram_fast", save_dir)
-            else:
-                full_dir = os.path.join("phasediagram_slow", save_dir)
+            full_dir = os.path.join(general_dir, save_dir)
             
             fpath = os.path.join(full_dir, fname)
 
@@ -718,6 +673,8 @@ def load_saved_results(T_list, delta_list, save_dir, type = "fast"):
                 i = delta_idx[delta]
                 j = T_idx[T]
                 data_grid[i, j] = entry
+            else: 
+                print(f"File {fpath} does not exist. Skipping. ")
 
     return data_grid
 
