@@ -141,7 +141,7 @@ def fourier_time(t_series, dt, sigma = 0.4, nw=4, gauss = True, normalize = Fals
         raise ValueError("Length of Fourier transform is not equal to length of input time series!")
 
     if normalize:
-        ft = ft/np.sum(ft)
+        ft = ft/np.sqrt(np.sum(np.abs(ft)**2))
 
     ft_0, ft_pi = ft_0_and_ft_pi(ft)
 
@@ -475,7 +475,7 @@ def phase_diagram_fast_otherversion(model, T_list, delta_list, N_cycles, N_shots
 
 #%% #PLOTS:
 #function to plot the 2d phase diagram!
-def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = None, result = "standard"):
+def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = None, result = "standard", bool_log = False, vmax = None, vmin = None, save = False, save_dir = None, filename = None):
 
     if figsize == None:
         figsize = (len(T_list), len(delta_list))
@@ -488,20 +488,26 @@ def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = Non
         ])
     elif result == "ratio":
         # Extract the 2D array of ratio |eta(pi)|/|eta(0)| using ft_0_and_ft_pi
-        def get_ratio(op_ft):
+        def get_ratio(op_ft, bool_log = bool_log):
             # If op_ft is a list (multi-shot), average the ratio over all shots
             if isinstance(op_ft, list):
                 ratios = []
                 for ft in op_ft:
                     ft_0, ft_pi = ft_0_and_ft_pi(ft)
                     ratios.append(np.abs(ft_pi) / np.abs(ft_0))
-                return np.mean(ratios)
+                if bool_log:
+                    return np.mean(np.log(ratios))
+                else:
+                    return np.mean(ratios)
             else:
                 ft_0, ft_pi = ft_0_and_ft_pi(op_ft)
-                return np.abs(ft_pi) / np.abs(ft_0)
+                if bool_log:
+                    return np.log(np.abs(ft_pi) / np.abs(ft_0))
+                else:
+                    return np.abs(ft_pi) / np.abs(ft_0)
 
         Z = np.array([
-            [get_ratio(data_grid[i, j]['op_ft']) for j in range(len(T_list))]
+            [get_ratio(data_grid[i, j]['op_ft'], bool_log) for j in range(len(T_list))]
             for i in range(len(delta_list))
         ])
 
@@ -512,6 +518,8 @@ def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = Non
     im = plt.imshow(Z, aspect='auto', origin='lower', 
                     extent=[T_list[0]-deltaT, T_list[-1]+deltaT, delta_list[0]-deltadelta, delta_list[-1]+deltadelta],
                     interpolation='none', 
+                    vmin = vmin,
+                    vmax = vmax
                     #cmap = 'inferno'
                     )
     
@@ -527,13 +535,30 @@ def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = Non
     plt.title('Phase Diagram')
 
     plt.tight_layout()
+
+    if save:
+        if save_dir is None:
+            save_dir = "figures_phasediagram"
+        os.makedirs(save_dir, exist_ok=True)
+        if filename is None:
+            filename = f"phase_diagram_{result}.png"   
+        plt.savefig(os.path.join(save_dir, filename))
+    
     plt.show()
 
 
-def plot_phase_diagram(T_list, delta_list, save_dir, type = "fast", figsize = None, result = "standard"):
+def plot_phase_diagram(T_list, delta_list, save_dir, type = "fast", figsize = None, result = "standard", bool_log = False, vmin = None, vmax = None, save = False, save_dir_image = None, filename = None):
     data_grid = load_saved_results(T_list, delta_list, save_dir, type = "fast")
-    plot_phase_diagram_fromdatagrid(data_grid[:len(delta_list), :len(T_list)], T_list, delta_list, figsize = figsize, result = result)
-
+    if filename is None:
+        filename = save_dir + f"_{result}"
+        if bool_log:
+            filename = filename + "_log"
+        if vmin is not None and vmax is not None:
+            filename = filename + f"_vmin{vmin}_vmax{vmax}"
+        filename = filename + ".png"
+    
+    plot_phase_diagram_fromdatagrid(data_grid[:len(delta_list), :len(T_list)], T_list, delta_list, figsize = figsize, result = result, bool_log = bool_log, vmin = vmin, vmax = vmax, 
+                                    save = save, save_dir = save_dir_image, filename = filename)
 
 
 def plot_single_entry_from_datagrid_1(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = "op_real", figsize = (12,5)):
@@ -636,7 +661,6 @@ def plot_single_entry_from_datagrid_2(
             plt.show()
         else:
             plot_shots([np.abs(shot) for shot in data], freqs, ylabel)
-
 
 def plot_single_entry(delta, T, T_list, delta_list, save_dir, type = "fast", N_cycles = 10, name = "op_real", figsize = (12,5), shot_idx = None):
     data_grid = load_saved_results(T_list, delta_list, save_dir, type = "fast")
