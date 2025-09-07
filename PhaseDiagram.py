@@ -471,45 +471,97 @@ def phase_diagram_fast_otherversion(model, T_list, delta_list, N_cycles, N_shots
 
     return freqs, np.arange(N_cycles + 1), data_grid
 
+#%% Manipulations on data grid
+def remove_shots_fromdatagrid(data_grid, T_list, delta_list, result="difference", threshold=100):
+    """
+    Removes shots from data grid entries if the value for that shot exceeds the threshold.
+    Works for both 'difference' and 'ratio' result types.
+    """
+    for i in range(len(delta_list)):
+        for j in range(len(T_list)):
+            entry = data_grid[i, j]
+            if entry is not None:
+                op_ft = entry['op_ft']
+                # Only process if multi-shot (list)
+                if isinstance(op_ft, list):
+                    filtered_op_ft = []
+                    for ft in op_ft:
+                        ft_0, ft_pi = ft_0_and_ft_pi(ft)
+                        if result == "difference":
+                            value = np.abs(ft_pi) - np.abs(ft_0)
+                        elif result == "ratio":
+                            value = np.abs(ft_pi) / np.abs(ft_0) if np.abs(ft_0) != 0 else np.inf
+
+                        if np.abs(value) <= threshold:
+                            filtered_op_ft.append(ft)
+                    entry['op_ft'] = filtered_op_ft
+    return data_grid
+
+def get_difference(op_ft):
+    if isinstance (op_ft, list):
+        differences = []
+        for ft in op_ft:
+            ft_0, ft_pi = ft_0_and_ft_pi(ft)
+            differences.append(np.abs(ft_pi) - np.abs(ft_0))
+        return np.mean(differences)
+    else:
+        ft_0, ft_pi = ft_0_and_ft_pi(op_ft)
+        return np.abs(ft_pi) - np.abs(ft_0)
+
+def get_ratio(op_ft, bool_log = False):
+    """ Computes the ratio |eta(pi)|/|eta(0)| from the Fourier transform data."""
+    # If op_ft is a list (multi-shot), average the ratio over all shots
+    if isinstance(op_ft, list):
+        ratios = []
+        for ft in op_ft:
+            ft_0, ft_pi = ft_0_and_ft_pi(ft)
+            ratios.append(np.abs(ft_pi) / np.abs(ft_0))
+        if bool_log:
+            return np.mean(np.log(ratios))
+        else:
+            return np.mean(ratios)
+    else:
+        ft_0, ft_pi = ft_0_and_ft_pi(op_ft)
+        if bool_log:
+            return np.log(np.abs(ft_pi) / np.abs(ft_0))
+        else:
+            return np.abs(ft_pi) / np.abs(ft_0)
+
+def get_result(op_ft, result = "difference", bool_log = False):
+    if result == "difference":
+        return get_difference(op_ft)
+    elif result == "ratio":
+        return get_ratio(op_ft, bool_log)
+    else:
+        raise ValueError("Invalid result type. Choose 'difference' or 'ratio'.")
+
+
+def get_data_grid_results(data_grid, T_list, delta_list, result="difference", bool_log = False, threshold=None):
+
+    if threshold is not None:
+        data_grid = remove_shots_fromdatagrid(data_grid, T_list, delta_list, result=result, threshold=threshold)
+
+    new_data_grid = np.empty((len(delta_list), len(T_list)))
+    for i in range(len(delta_list)):
+        for j in range(len(T_list)):
+            entry = data_grid[i, j]
+            op_ft = entry['op_ft']
+
+            if result == "difference":
+                new_data_grid[i, j] = get_difference(op_ft)
+            elif result == "ratio":
+                new_data_grid[i, j] = get_ratio(op_ft, bool_log = bool_log)
+
+    return new_data_grid
 
 #%% #PLOTS:
 #function to plot the 2d phase diagram!
-def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = None, result = "standard", bool_log = False, vmax = None, vmin = None, save = False, save_dir = None, filename = None):
+def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = None, result = "difference", bool_log = False, threshold = None, vmax = None, vmin = None, save = False, save_dir = None, filename = None):
 
     if figsize == None:
         figsize = (len(T_list), len(delta_list))
     
-    if result == "standard":
-        # Extract the 2D array of 'result'
-        Z = np.array([
-            [data_grid[i, j]['result'] for j in range(len(T_list))]
-            for i in range(len(delta_list))
-        ])
-
-    elif result == "ratio":
-        # Extract the 2D array of ratio |eta(pi)|/|eta(0)| using ft_0_and_ft_pi
-        def get_ratio(op_ft, bool_log = bool_log):
-            # If op_ft is a list (multi-shot), average the ratio over all shots
-            if isinstance(op_ft, list):
-                ratios = []
-                for ft in op_ft:
-                    ft_0, ft_pi = ft_0_and_ft_pi(ft)
-                    ratios.append(np.abs(ft_pi) / np.abs(ft_0))
-                if bool_log:
-                    return np.mean(np.log(ratios))
-                else:
-                    return np.mean(ratios)
-            else:
-                ft_0, ft_pi = ft_0_and_ft_pi(op_ft)
-                if bool_log:
-                    return np.log(np.abs(ft_pi) / np.abs(ft_0))
-                else:
-                    return np.abs(ft_pi) / np.abs(ft_0)
-
-        Z = np.array([
-            [get_ratio(data_grid[i, j]['op_ft'], bool_log) for j in range(len(T_list))]
-            for i in range(len(delta_list))
-        ])
+    Z = get_data_grid_results(data_grid, T_list, delta_list, result=result, bool_log = bool_log, threshold=threshold)
 
     deltaT = (T_list[1]-T_list[0])/2
     deltadelta = (delta_list[1]-delta_list[0])/2
@@ -526,7 +578,7 @@ def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = Non
     plt.xticks(np.array(T_list))
     plt.yticks(np.array(delta_list))
 
-    if result == "standard":
+    if result == "difference":
         plt.colorbar(im, label=r'$|\eta(π)| - |\eta(0)|$')
     elif result == "ratio":
         plt.colorbar(im, label=r'$\frac{|\eta(π)|}{|\eta(0)|}$')
@@ -546,8 +598,7 @@ def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = Non
     
     plt.show()
 
-
-def plot_phase_diagram(T_list, delta_list, save_dir, general_dir = "phasediagram", figsize = None, result = "standard", bool_log = False, vmin = None, vmax = None, save = False, save_dir_image = None, filename = None):
+def plot_phase_diagram(T_list, delta_list, save_dir, general_dir = "phasediagram", figsize = None, result = "difference", bool_log = False, threshold = None, vmin = None, vmax = None, save = False, save_dir_image = None, filename = None):
     data_grid = load_saved_results(T_list, delta_list, save_dir, general_dir = general_dir)
     if filename is None:
         filename = save_dir + f"_{result}"
@@ -557,12 +608,16 @@ def plot_phase_diagram(T_list, delta_list, save_dir, general_dir = "phasediagram
             filename = filename + f"_vmin{vmin}_vmax{vmax}"
         filename = filename + ".png"
     
-    plot_phase_diagram_fromdatagrid(data_grid[:len(delta_list), :len(T_list)], T_list, delta_list, figsize = figsize, result = result, bool_log = bool_log, vmin = vmin, vmax = vmax, 
+    plot_phase_diagram_fromdatagrid(data_grid[:len(delta_list), :len(T_list)], T_list, delta_list, figsize = figsize, result = result, bool_log = bool_log, 
+                                    threshold = threshold, vmin = vmin, vmax = vmax, 
                                     save = save, save_dir = save_dir_image, filename = filename)
 
-def plot_single_entry_from_datagrid(
-    data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name="op_real", figsize=(12, 5), shot_idx=None
-):
+def plot_single_entry_from_datagrid(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name="op_real",
+                                    figsize=(12, 5), shot_idx=None, threshold=None):
+    
+    if threshold is not None:
+        data_grid = remove_shots_fromdatagrid(data_grid, T_list, delta_list, threshold=threshold)
+    
     entry = data_grid[delta_idx, T_idx]
     floquet_cycles = np.arange(N_cycles + 1)
     freqs = frequencies(N_cycles + 1)
@@ -620,12 +675,13 @@ def plot_single_entry_from_datagrid(
         else:
             plot_shots([np.abs(shot) for shot in data], freqs, ylabel)
 
-def plot_single_entry(delta, T, T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10, name = "op_real", figsize = (12,5), shot_idx = None):
+def plot_single_entry(delta, T, T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10,
+                       name = "op_real", figsize = (12,5), shot_idx = None, threshold=None):
     data_grid = load_saved_results(T_list, delta_list, save_dir, general_dir = general_dir)
     if delta in delta_list and T in T_list:
         delta_idx = delta_list.index(delta)
         T_idx = T_list.index(T)
-        plot_single_entry_from_datagrid(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, shot_idx = shot_idx)
+        plot_single_entry_from_datagrid(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, shot_idx = shot_idx, threshold=threshold)
     else:
         print("Provided delta or T not in the respective list.")
         return
@@ -664,8 +720,12 @@ def load_saved_results(T_list, delta_list, save_dir, general_dir = "phasediagram
             fname = f"delta_{delta:.5f}_T_{T:.5f}.pkl"
 
             full_dir = os.path.join(general_dir, save_dir)
-            
-            fpath = os.path.join(full_dir, fname)
+
+            if os.path.exists(full_dir):
+                fpath = os.path.join(full_dir, fname)
+            else:
+                print(f"Directory {full_dir} does not exist. Please check the path.")
+                return None
 
             if os.path.exists(fpath):
                 with open(fpath, 'rb') as f:
@@ -682,7 +742,7 @@ def load_saved_results(T_list, delta_list, save_dir, general_dir = "phasediagram
 
 
 #%% profile output of the "order_parameter_delta_T"
-import cProfile 
+""" import cProfile 
 import pstats
 
 #defined function to create the profile output of the "order_parameter_delta_T" function 
@@ -708,15 +768,16 @@ if __name__ == "__main__":
 
 # otherwise use:
 # python -m cProfile -s cumtime your_script.py 
-
-"""
-Other function to check if phase_diagram_slow works
 """
 
-# T_list = np.linspace(1,0.6,10).tolist()
-# delta_list = [0,0.1,0.2]
-# N_cycles = 10
-# model = site.SitesOBC(Npx = 17, Npy = 17, edge = True)
+#%% Debug usage of the manipulation functions
+"""
+T_list = np.linspace(1,0.1,10).tolist()
 
-# freqs, N_list, data_grid = phase_diagram_slow(model, T_list, delta_list,  N_shots= 5, N_cycles= N_cycles, method = '1', save_dir = "op_1")
+delta_list = [0,0.1,0.2,0.3]
+N_cycles = 10
 
+data_grid = load_saved_results(T_list, delta_list, save_dir = "pd_1_noedge", general_dir = "phasediagram")
+
+remove_shots_fromdatagrid(data_grid, T_list, delta_list, result="difference", threshold=100)
+"""
