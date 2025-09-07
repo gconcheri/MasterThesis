@@ -581,7 +581,11 @@ def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = Non
     if result == "difference":
         plt.colorbar(im, label=r'$|\eta(π)| - |\eta(0)|$')
     elif result == "ratio":
-        plt.colorbar(im, label=r'$\frac{|\eta(π)|}{|\eta(0)|}$')
+        if bool_log:
+            plt.colorbar(im, label=r'$\log(\frac{|\eta(π)|}{|\eta(0)|})$')
+        else:
+            plt.colorbar(im, label=r'$\frac{|\eta(π)|}{|\eta(0)|}$')
+            
     plt.xlabel('T')
     plt.ylabel(r'$\Delta$')
     plt.title('Phase Diagram')
@@ -606,6 +610,8 @@ def plot_phase_diagram(T_list, delta_list, save_dir, general_dir = "phasediagram
             filename = filename + "_log"
         if vmin is not None and vmax is not None:
             filename = filename + f"_vmin{vmin}_vmax{vmax}"
+        if threshold is not None:
+            filename = filename + f"_thresh{threshold}"
         filename = filename + ".png"
     
     plot_phase_diagram_fromdatagrid(data_grid[:len(delta_list), :len(T_list)], T_list, delta_list, figsize = figsize, result = result, bool_log = bool_log, 
