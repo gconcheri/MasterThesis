@@ -497,6 +497,20 @@ def remove_shots_fromdatagrid(data_grid, T_list, delta_list, result="difference"
                     entry['op_ft'] = filtered_op_ft
     return data_grid
 
+def count_remaining_shots(data_grid, T_list, delta_list):
+    """
+    Returns a grid with the number of remaining shots in entry['op_ft'] for each entry in data_grid.
+    """
+    shot_count_grid = np.zeros((len(delta_list), len(T_list)), dtype=int)
+    for i in range(len(delta_list)):
+        for j in range(len(T_list)):
+            entry = data_grid[i, j]
+            if entry is not None and isinstance(entry['op_ft'], list):
+                shot_count_grid[i, j] = len(entry['op_ft'])
+            else:
+                shot_count_grid[i, j] = 1  # single shot or None
+    return shot_count_grid
+
 def get_difference(op_ft):
     if isinstance (op_ft, list):
         differences = []
@@ -536,7 +550,7 @@ def get_result(op_ft, result = "difference", bool_log = False):
         raise ValueError("Invalid result type. Choose 'difference' or 'ratio'.")
 
 
-def get_data_grid_results(data_grid, T_list, delta_list, result="difference", bool_log = False, threshold=None):
+def get_data_grid_results(data_grid, T_list, delta_list, result="difference", bool_log = False, threshold=None, count_shots = False):
 
     if threshold is not None:
         data_grid = remove_shots_fromdatagrid(data_grid, T_list, delta_list, result=result, threshold=threshold)
@@ -552,7 +566,11 @@ def get_data_grid_results(data_grid, T_list, delta_list, result="difference", bo
             elif result == "ratio":
                 new_data_grid[i, j] = get_ratio(op_ft, bool_log = bool_log)
 
-    return new_data_grid
+    if count_shots:
+        data_grid_shot_counts = count_remaining_shots(data_grid, T_list, delta_list)
+        return new_data_grid, data_grid_shot_counts
+    else:
+        return new_data_grid
 
 #%% #PLOTS:
 #function to plot the 2d phase diagram!
@@ -585,7 +603,7 @@ def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = Non
             plt.colorbar(im, label=r'$\log(\frac{|\eta(π)|}{|\eta(0)|})$')
         else:
             plt.colorbar(im, label=r'$\frac{|\eta(π)|}{|\eta(0)|}$')
-            
+
     plt.xlabel('T')
     plt.ylabel(r'$\Delta$')
     plt.title('Phase Diagram')
