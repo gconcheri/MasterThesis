@@ -1,5 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
+
 
 import Class_site as site
 import free_fermion_representation as f
@@ -636,7 +638,7 @@ def plot_phase_diagram(T_list, delta_list, save_dir, general_dir = "phasediagram
                                     threshold = threshold, vmin = vmin, vmax = vmax, 
                                     save = save, save_dir = save_dir_image, filename = filename)
 
-def plot_single_entry_from_datagrid(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name="op_real",
+def plot_single_entry_fromdatagrid_2(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name="op_real",
                                     figsize=(12, 5), shot_idx=None, threshold=None):
     
     if threshold is not None:
@@ -652,23 +654,44 @@ def plot_single_entry_from_datagrid(data_grid, delta_idx, T_idx, T_list, delta_l
 
     plt.figure(figsize=figsize)
 
-    def plot_shots(data, x, ylabel):
+    def plot_shots(data, x, ylabel, axx=None):
         if shot_idx is not None:
             if 0 <= shot_idx < len(data):
-                plt.plot(x, data[shot_idx], label=f'Shot {shot_idx+1}')
-                plt.legend()
+                if axx is not None:
+                    axx.plot(x, data[shot_idx], label=f'Shot {shot_idx+1}')
+                    axx.legend()
+                    axx.set_xlabel('Floquet Cycles' if ylabel != 'Fourier Transform' else 'Frequency')
+                    axx.set_ylabel(ylabel)
+                else:
+                    plt.plot(x, data[shot_idx], label=f'Shot {shot_idx+1}')
+                    plt.legend()
+                    plt.xlabel('Floquet Cycles' if ylabel != 'Fourier Transform' else 'Frequency')
+                    plt.ylabel(ylabel)
             else:
                 print(f"shot_idx {shot_idx} out of range (max {len(data)-1})")
                 return
         else:
             for i, shot in enumerate(data):
-                plt.plot(x, shot, label=f'Shot {i+1}')
-            plt.legend()
-        plt.xlabel('Floquet Cycles' if ylabel != 'Fourier Transform' else 'Frequency')
-        plt.ylabel(ylabel)
-        plt.title(f'Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}')
-        plt.tight_layout()
-        plt.show()
+                if axx is not None:
+                    axx.plot(x, shot, label=f'Shot {i+1}')
+                else:
+                    plt.plot(x, shot, label=f'Shot {i+1}')
+            if axx is not None:
+                axx.legend()
+                axx.set_xlabel('Floquet Cycles' if ylabel != 'Fourier Transform' else 'Frequency')
+                axx.set_ylabel(ylabel)
+            else:
+                plt.legend()
+                plt.xlabel('Floquet Cycles' if ylabel != 'Fourier Transform' else 'Frequency')
+                plt.ylabel(ylabel)
+        # Titles and layout
+        if axx is not None:
+            axx.set_title(f'Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}')
+        else:
+            plt.title(f'Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}')
+            plt.tight_layout()
+            plt.show()
+
 
     if name in ["op_real", "loop_0", "loop_e"]:
         ylabel = {
@@ -698,24 +721,219 @@ def plot_single_entry_from_datagrid(data_grid, delta_idx, T_idx, T_list, delta_l
             plt.show()
         else:
             plot_shots([np.abs(shot) for shot in data], freqs, ylabel)
+    elif name == "real_ft":
+        data_real = entry["op_real"]
+        data_ft = entry["op_ft"]
+
+        fig, ax = plt.subplots(1, 2, figsize=figsize)
+
+        if delta_idx == 0 or not isinstance(data_real, list):
+            ax[0].plot(floquet_cycles, data_real)
+            ax[0].set_xlabel('Floquet Cycles')
+            ax[0].set_ylabel('Order Parameter')
+            ax[0].set_title(f'Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}')
+        else:
+            plot_shots(data_real, floquet_cycles, 'Order Parameter', axx=ax[0])
+        
+        if delta_idx == 0 or not isinstance(data_ft, list):
+            ax[1].plot(freqs, np.abs(data_ft))
+            ax[1].set_xlabel('Frequency')
+            ax[1].set_ylabel('Fourier Transform')
+            ax[1].set_title(f'Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}')
+        else:
+            plot_shots([np.abs(shot) for shot in data_ft], freqs, 'Fourier Transform', axx=ax[1])
+        
+        plt.tight_layout()
+        plt.show()
+
+    else:
+        print(f"Invalid name '{name}'. Choose from 'op_real', 'loop_0', 'loop_e', 'op_ft', or 'both'.")
+        return
+
+def plot_single_entry_fromdatagrid(
+    data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name="op_real",
+    figsize=(12, 5), shot_idx=None, threshold=None, log_list=None, layout="row", color_list=None
+): #color_list could be plt.cm.tab10.colors or similar
+    """
+    Plots a single entry from the data grid for given delta and T indices.
+    If name is a list, creates subplots for each specified quantity.
+    If log_list is a list of booleans, it specifies whether to plot the log for each corresponding quantity in name.
+    layout: "row", "col", or (nrows, ncols)
+    If log_bool = True for the loop_e, then we place absolute value before taking log to avoid issues with negative values.
+    """
+    if log_list is not None:
+        if not isinstance(log_list, list) or len(log_list) != len(name):
+            raise ValueError("log_list must be a list of booleans with the same length as name.")
+        
+    if threshold is not None:
+        data_grid = remove_shots_fromdatagrid(data_grid, T_list, delta_list, threshold=threshold)
+    
+    entry = data_grid[delta_idx, T_idx]
+    floquet_cycles = np.arange(N_cycles + 1)
+    freqs = frequencies(N_cycles + 1)
+
+    if entry is None:
+        print(f"No data available for Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}")
+        return
+
+    def plot_shots(data, x, title, ylabel, axx=None, log_bool=False, color_list=None):
+        if axx is None:
+            raise ValueError("axx must be provided for plotting shots.")
+        if shot_idx is not None:
+            if 0 <= shot_idx < len(data):
+                axx.plot(x, data[shot_idx])
+                axx.legend()
+                axx.set_xlabel('Floquet Cycles' if title != 'Fourier Transform' else 'Frequency')
+                axx.set_ylabel(ylabel)
+                if log_bool:
+                    axx.set_ylabel("Log " + ylabel)
+                    axx.set_yscale("log")
+                axx.set_title(title + f' (Shot {shot_idx+1})')
+            else:
+                print(f"shot_idx {shot_idx} out of range (max {len(data)-1})")
+                return
+        else:
+            nshots = len(data)
+            if color_list is None:
+                color_list = [plt.cm.viridis(i / nshots) for i in range(nshots)]
+
+            for i, shot in enumerate(data):
+
+                axx.plot(x, shot, label=f'Shot {i+1}', color=color_list[i])
+                axx.legend()
+                axx.set_xlabel('Floquet Cycles' if title != 'Fourier Transform' else 'Frequency')
+                axx.set_ylabel(ylabel)
+                if log_bool:
+                    axx.set_ylabel("Log " + ylabel)
+                    axx.set_yscale("log")
+                axx.set_title(title)
+
+
+    # Make name a list if it's not already
+    if not isinstance(name, list):
+        name = [name]
+
+    nplots = len(name)
+    # Determine layout
+    if isinstance(layout, str):
+        if layout == "row":
+            nrows, ncols = 1, nplots
+        elif layout == "col":
+            nrows, ncols = nplots, 1
+        else:
+            raise ValueError("layout must be 'row', 'col', or a tuple (nrows, ncols)")
+    elif isinstance(layout, tuple) and len(layout) == 2:
+        nrows, ncols = layout
+        if nrows * ncols < nplots:
+            raise ValueError("layout grid too small for number of plots")
+    else:
+        raise ValueError("layout must be 'row', 'col', or a tuple (nrows, ncols)")
+
+    fig, axes = plt.subplots(nrows, ncols, figsize=(figsize[0]*ncols, figsize[1]*nrows) if nplots > 1 else figsize)
+    axes = np.array(axes).reshape(-1) if nplots > 1 else [axes]
+
+    for idx, n in enumerate(name):
+        log_bool = log_list[idx] if log_list is not None else False
+        ax = axes[idx]
+        if n in ["op_real", "loop_0", "loop_e"]:
+            title = {
+                "op_real": "Order Parameter",
+                "loop_0": "Loop Expectation Value (no anyon)",
+                "loop_e": "Loop Expectation Value (e anyon)"
+            }[n]
+            ylabel = {
+                "op_real": r"$\eta$",
+                "loop_0": r"$\langle O_0 \rangle$",
+                "loop_e": r"$\langle O_e \rangle$",
+            }[n]
+            data = entry[n]
+            x = floquet_cycles
+
+            if delta_idx == 0 or not isinstance(data, list):
+                ax.plot(x, np.abs(data) if log_bool else data)
+                ax.set_xlabel('Floquet Cycles')
+                ax.set_ylabel(ylabel)
+                if log_bool:
+                    ax.set_ylabel("Log " + ylabel)
+                    ax.set_yscale("log")
+                ax.set_title(title)
+            else:
+                if log_bool:
+                    data = [np.abs(shot) for shot in data]
+                plot_shots(data, x, title, ylabel, axx=ax, log_bool=log_bool, color_list=color_list)
+
+        elif n == "op_ft":
+            data = entry[n]
+            ylabel = r"$FT ({\eta})$"
+            title = "Fourier Transform"
+            x = freqs
+            if delta_idx == 0 or not isinstance(data, list):
+                ax.plot(x, np.abs(data))
+                ax.set_xlabel('Frequency')
+                ax.set_ylabel(ylabel)
+                if log_bool:
+                    ax.set_ylabel("Log " + ylabel)
+                    ax.set_yscale("log")
+                ax.set_title(title)
+            else:
+                plot_shots([np.abs(shot) for shot in data], x, title, ylabel, axx=ax, log_bool=log_bool, color_list=color_list)
+        else:
+            ax.set_title(f"Invalid name '{n}'")
+            ax.axis('off')
+        
+        # ax.yaxis.set_major_formatter(mticker.FormatStrFormatter('%.2f'))
+
+        fig.suptitle(f'Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}', fontsize=16)
+
+    plt.tight_layout()
+    plt.show()
 
 def plot_single_entry(delta, T, T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10,
-                       name = "op_real", figsize = (12,5), shot_idx = None, threshold=None):
+                       name = "op_real", figsize = (12,5), shot_idx = None, threshold=None, log_list = None, layout="row", color_list=None):
     data_grid = load_saved_results(T_list, delta_list, save_dir, general_dir = general_dir)
     if delta in delta_list and T in T_list:
         delta_idx = delta_list.index(delta)
         T_idx = T_list.index(T)
-        plot_single_entry_from_datagrid(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, shot_idx = shot_idx, threshold=threshold)
+        plot_single_entry_fromdatagrid(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, shot_idx = shot_idx, threshold=threshold, log_list=log_list, layout=layout, color_list=color_list)
     else:
         print("Provided delta or T not in the respective list.")
         return
     
 #plot all T for a fixed delta
-def plot_all_T_fixed_delta(data_grid, delta_idx, T_list, delta_list, N_cycles, name = "op_real", figsize = (12,5)):
-    floquet_cycles = np.arange(N_cycles + 1)
-
+def plot_all_T_fixed_delta_fromdatagrid(data_grid, delta_idx, T_list, delta_list, N_cycles, name = "op_real", figsize = (12,5), log_list = None, layout="row", color_list=None):
     for T_idx in range(len(T_list)):
-        plot_single_entry_from_datagrid(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize)
+        plot_single_entry_fromdatagrid(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, log_list=log_list, layout=layout, color_list=color_list)
+
+def plot_all_T_fixed_delta(delta, T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10, name = "op_real", figsize = (12,5), log_list = None, layout="row", color_list=None):
+    data_grid = load_saved_results(T_list, delta_list, save_dir, general_dir = general_dir)
+    if delta in delta_list:
+        delta_idx = delta_list.index(delta)
+        plot_all_T_fixed_delta_fromdatagrid(data_grid, delta_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, log_list=log_list, layout=layout, color_list=color_list)
+    else:
+        print("Provided delta not in the respective list.")
+        return
+
+def plot_all_delta_fixed_T_fromdatagrid(data_grid, T_idx, T_list, delta_list, N_cycles, name = "op_real", figsize = (12,5), log_list = None, layout="row", color_list=None):
+    for delta_idx in range(len(delta_list)):
+        plot_single_entry_fromdatagrid(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, log_list=log_list, layout=layout, color_list=color_list)
+
+def plot_all_delta_fixed_T(T, T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10, name = "op_real", figsize = (12,5), log_list = None, layout="row", color_list=None):
+    data_grid = load_saved_results(T_list, delta_list, save_dir, general_dir = general_dir)
+    if T in T_list:
+        T_idx = T_list.index(T)
+        plot_all_delta_fixed_T_fromdatagrid(data_grid, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, log_list=log_list, layout=layout, color_list=color_list)
+    else:
+        print("Provided T not in the respective list.")
+        return
+
+def plot_all_entries_fromdatagrid(data_grid, T_list, delta_list, N_cycles, name = "op_real", figsize = (12,5), log_list = None, layout="row", color_list=None):
+    for delta_idx in range(len(delta_list)):
+        for T_idx in range(len(T_list)):
+            plot_single_entry_fromdatagrid(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, log_list=log_list, layout=layout, color_list=color_list)
+
+def plot_all_entries(T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10, name = "op_real", figsize = (12,5), log_list = None, layout="row", color_list=None):
+    data_grid = load_saved_results(T_list, delta_list, save_dir, general_dir = general_dir)
+    plot_all_entries_fromdatagrid(data_grid, T_list, delta_list, N_cycles, name = name, figsize = figsize, log_list=log_list, layout=layout, color_list=color_list)
 
 
 #%% functions to save or load arrays!
