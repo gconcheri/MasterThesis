@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
+import copy
 
 
 import Class_site as site
@@ -44,7 +45,7 @@ def order_parameter_delta_T_method1(model, fgs, T, delta, N_cycles, edgepar = No
         orderpar.append(op)
         loop_0.append(value_0)
         loop_e.append(value_e)
-        fgs.update_cov_0_matrix(R_V0 @ R0) 
+        fgs.update_cov_0_matrix(R_V0 @ R0)
         fgs.update_cov_e_matrix(R_Ve @ Re)
         # this approach requires 3*N^3 operations 
         #vs doing 2 consecutive updates update(R0) -> update(R_V0) = 4*N^3 operations!
@@ -474,7 +475,11 @@ def phase_diagram_fast_otherversion(model, T_list, delta_list, N_cycles, N_shots
     return freqs, np.arange(N_cycles + 1), data_grid
 
 #%% Manipulations on data grid
-def remove_shots_fromdatagrid(data_grid, T_list, delta_list, result="difference", threshold=100):
+
+#this code is not very robust, since I only change entry['op_ft'] and 
+#do not update all other elements in entry
+#i.e. I could not use it before regularizing data grid, only after!
+def remove_shots_fromdatagrid_old(data_grid, T_list, delta_list, result="difference", threshold=100):
     """
     Removes shots from data grid entries if the value for that shot exceeds the threshold.
     Works for both 'difference' and 'ratio' result types.
@@ -499,6 +504,37 @@ def remove_shots_fromdatagrid(data_grid, T_list, delta_list, result="difference"
                     entry['op_ft'] = filtered_op_ft
     return data_grid
 
+def remove_shots_fromdatagrid(data_grid, T_list, delta_list, result="difference", threshold=100):
+    """
+    Removes shots from all relevant data grid entry lists if the value for that shot exceeds the threshold.
+    Works for both 'difference' and 'ratio' result types.
+    """
+    for i in range(len(delta_list)):
+        for j in range(len(T_list)):
+            entry = data_grid[i, j]
+            if entry is not None:
+                op_ft = entry['op_ft']
+                # Only process if multi-shot (list)
+                if isinstance(op_ft, list):
+                    keep_indices = []
+                    for idx, ft in enumerate(op_ft):
+                        ft_0, ft_pi = ft_0_and_ft_pi(ft)
+                        if result == "difference":
+                            value = np.abs(ft_pi) - np.abs(ft_0)
+                        elif result == "ratio":
+                            value = np.abs(ft_pi) / np.abs(ft_0) if np.abs(ft_0) != 0 else np.inf
+                        if np.abs(value) <= threshold:
+                            keep_indices.append(idx)
+                    # Filter all relevant lists
+                    entry['op_ft'] = [entry['op_ft'][k] for k in keep_indices]
+                    if isinstance(entry['op_real'], list):
+                        entry['op_real'] = [entry['op_real'][k] for k in keep_indices]
+                    if isinstance(entry['loop_e'], list):
+                        entry['loop_e'] = [entry['loop_e'][k] for k in keep_indices]
+                    if isinstance(entry['loop_0'], list):
+                        entry['loop_0'] = [entry['loop_0'][k] for k in keep_indices]
+    return data_grid
+
 def count_remaining_shots(data_grid, T_list, delta_list):
     """
     Returns a grid with the number of remaining shots in entry['op_ft'] for each entry in data_grid.
@@ -512,6 +548,31 @@ def count_remaining_shots(data_grid, T_list, delta_list):
             else:
                 shot_count_grid[i, j] = 1  # single shot or None
     return shot_count_grid
+
+def get_regularized_data_grid(data_grid, T_list, delta_list, regularization = 1e-15):
+    #does not change entry['result'], only entry['op_real'], entry['op_ft'], entry['loop_0']
+
+    for i in range(len(delta_list)):
+        for j in range(len(T_list)):
+            entry = data_grid[i, j]
+            if entry is not None:
+                arr = np.array(entry['loop_0'])
+                arr[arr < regularization] = regularization
+                entry['loop_0'] = arr.tolist()
+                entry['op_real'] = (np.array(entry['loop_e'])/arr).tolist()
+
+                if isinstance(entry['op_real'][0], list):
+                    filtered_op_ft = []
+                    for op in entry['op_real']:
+                        filtered_op_ft.append(fourier_time(np.array(op), 1)[0])
+                    entry['op_ft'] = filtered_op_ft
+                else:
+                    entry['op_ft'] = fourier_time(np.array(entry['op_real']), 1)[0]
+
+            else:
+                raise ValueError(f"Data grid entry at delta index {i}, T index {j} is None.")    
+    return data_grid
+
 
 def get_difference(op_ft):
     if isinstance (op_ft, list):
@@ -552,7 +613,11 @@ def get_result(op_ft, result = "difference", bool_log = False):
         raise ValueError("Invalid result type. Choose 'difference' or 'ratio'.")
 
 
-def get_data_grid_results(data_grid, T_list, delta_list, result="difference", bool_log = False, threshold=None, count_shots = False):
+def get_data_grid_results(data_grid, T_list, delta_list, result="difference", bool_log = False, regularization = None, threshold=None, count_shots = False):
+    #data_grid = copy.deepcopy(data_grid)  # Add this line to avoid modifying the original data_grid
+
+    if regularization is not None:
+        data_grid = get_regularized_data_grid(data_grid, T_list, delta_list, regularization=regularization)
 
     if threshold is not None:
         data_grid = remove_shots_fromdatagrid(data_grid, T_list, delta_list, result=result, threshold=threshold)
@@ -576,12 +641,12 @@ def get_data_grid_results(data_grid, T_list, delta_list, result="difference", bo
 
 #%% #PLOTS:
 #function to plot the 2d phase diagram!
-def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = None, result = "difference", bool_log = False, threshold = None, vmax = None, vmin = None, save = False, save_dir = None, filename = None):
+def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = None, result = "difference", bool_log = False, regularization = None, threshold = None, vmax = None, vmin = None, save = False, save_dir = None, filename = None):
 
     if figsize == None:
         figsize = (len(T_list), len(delta_list))
-    
-    Z = get_data_grid_results(data_grid, T_list, delta_list, result=result, bool_log = bool_log, threshold=threshold)
+
+    Z = get_data_grid_results(data_grid, T_list, delta_list, result=result, bool_log = bool_log, regularization = regularization, threshold=threshold)
 
     deltaT = (T_list[1]-T_list[0])/2
     deltadelta = (delta_list[1]-delta_list[0])/2
@@ -622,7 +687,8 @@ def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = Non
     
     plt.show()
 
-def plot_phase_diagram(T_list, delta_list, save_dir, general_dir = "phasediagram", figsize = None, result = "difference", bool_log = False, threshold = None, vmin = None, vmax = None, save = False, save_dir_image = None, filename = None):
+def plot_phase_diagram(T_list, delta_list, save_dir, general_dir = "phasediagram", figsize = None, result = "difference", bool_log = False, 
+                       regularization = None, threshold = None, vmin = None, vmax = None, save = False, save_dir_image = None, filename = None):
     data_grid = load_saved_results(T_list, delta_list, save_dir, general_dir = general_dir)
     if filename is None:
         filename = save_dir + f"_{result}"
@@ -632,10 +698,12 @@ def plot_phase_diagram(T_list, delta_list, save_dir, general_dir = "phasediagram
             filename = filename + f"_vmin{vmin}_vmax{vmax}"
         if threshold is not None:
             filename = filename + f"_thresh{threshold}"
+        if regularization is not None:
+            filename = filename + f"_reg{regularization}"
         filename = filename + ".png"
-    
-    plot_phase_diagram_fromdatagrid(data_grid[:len(delta_list), :len(T_list)], T_list, delta_list, figsize = figsize, result = result, bool_log = bool_log, 
-                                    threshold = threshold, vmin = vmin, vmax = vmax, 
+
+    plot_phase_diagram_fromdatagrid(data_grid[:len(delta_list), :len(T_list)], T_list, delta_list, figsize = figsize, result = result, bool_log = bool_log,
+                                    regularization = regularization, threshold = threshold, vmin = vmin, vmax = vmax,
                                     save = save, save_dir = save_dir_image, filename = filename)
 
 def plot_single_entry_fromdatagrid_2(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name="op_real",
@@ -752,7 +820,7 @@ def plot_single_entry_fromdatagrid_2(data_grid, delta_idx, T_idx, T_list, delta_
 
 def plot_single_entry_fromdatagrid(
     data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name="op_real",
-    figsize=(12, 5), shot_idx=None, threshold=None, log_list=None, layout="row", color_list=None
+    figsize=(12, 5), shot_idx=None, regularization = None, threshold=None, log_list=None, layout="row", color_list=None
 ): #color_list could be plt.cm.tab10.colors or similar
     """
     Plots a single entry from the data grid for given delta and T indices.
@@ -761,10 +829,15 @@ def plot_single_entry_fromdatagrid(
     layout: "row", "col", or (nrows, ncols)
     If log_bool = True for the loop_e, then we place absolute value before taking log to avoid issues with negative values.
     """
+    data_grid = copy.deepcopy(data_grid)  # Add this line to avoid modifying the original data_grid
+
     if log_list is not None:
         if not isinstance(log_list, list) or len(log_list) != len(name):
             raise ValueError("log_list must be a list of booleans with the same length as name.")
-        
+
+    if regularization is not None:
+        data_grid = get_regularized_data_grid(data_grid, T_list, delta_list, regularization=regularization)
+
     if threshold is not None:
         data_grid = remove_shots_fromdatagrid(data_grid, T_list, delta_list, threshold=threshold)
     
@@ -889,51 +962,83 @@ def plot_single_entry_fromdatagrid(
     plt.show()
 
 def plot_single_entry(delta, T, T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10,
-                       name = "op_real", figsize = (12,5), shot_idx = None, threshold=None, log_list = None, layout="row", color_list=None):
+                       name = "op_real", figsize = (12,5), shot_idx = None, regularization = None, threshold=None,
+                       log_list = None, layout="row", color_list=None):
     data_grid = load_saved_results(T_list, delta_list, save_dir, general_dir = general_dir)
     if delta in delta_list and T in T_list:
         delta_idx = delta_list.index(delta)
         T_idx = T_list.index(T)
-        plot_single_entry_fromdatagrid(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, shot_idx = shot_idx, threshold=threshold, log_list=log_list, layout=layout, color_list=color_list)
+        plot_single_entry_fromdatagrid(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, shot_idx = shot_idx,
+                                        regularization = regularization, threshold=threshold, log_list=log_list, layout=layout, color_list=color_list)
     else:
         print("Provided delta or T not in the respective list.")
-        return
+        return 
     
 #plot all T for a fixed delta
-def plot_all_T_fixed_delta_fromdatagrid(data_grid, delta_idx, T_list, delta_list, N_cycles, name = "op_real", figsize = (12,5), log_list = None, layout="row", color_list=None):
+def plot_all_T_fixed_delta_fromdatagrid(data_grid, delta_idx, T_list, delta_list, N_cycles, name = "op_real", figsize = (12,5), regularization = None, threshold=None, log_list = None, layout="row", color_list=None):
+    data_grid = copy.deepcopy(data_grid)  # Add this line to avoid modifying the original data_grid
+
+    if regularization is not None:
+        data_grid = get_regularized_data_grid(data_grid, T_list, delta_list, regularization=regularization)
+
+    if threshold is not None:
+        data_grid = remove_shots_fromdatagrid(data_grid, T_list, delta_list, threshold=threshold)
+
     for T_idx in range(len(T_list)):
         plot_single_entry_fromdatagrid(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, log_list=log_list, layout=layout, color_list=color_list)
 
-def plot_all_T_fixed_delta(delta, T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10, name = "op_real", figsize = (12,5), log_list = None, layout="row", color_list=None):
+def plot_all_T_fixed_delta(delta, T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10, name = "op_real", figsize = (12,5), regularization = None, threshold=None, log_list = None, layout="row", color_list=None):
     data_grid = load_saved_results(T_list, delta_list, save_dir, general_dir = general_dir)
     if delta in delta_list:
         delta_idx = delta_list.index(delta)
-        plot_all_T_fixed_delta_fromdatagrid(data_grid, delta_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, log_list=log_list, layout=layout, color_list=color_list)
+        plot_all_T_fixed_delta_fromdatagrid(data_grid, delta_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, 
+                                            log_list=log_list, layout=layout, color_list=color_list)
     else:
         print("Provided delta not in the respective list.")
         return
 
-def plot_all_delta_fixed_T_fromdatagrid(data_grid, T_idx, T_list, delta_list, N_cycles, name = "op_real", figsize = (12,5), log_list = None, layout="row", color_list=None):
+def plot_all_delta_fixed_T_fromdatagrid(data_grid, T_idx, T_list, delta_list, N_cycles, name = "op_real", figsize = (12,5), regularization = None, threshold=None, log_list = None, layout="row", color_list=None):
+    data_grid = copy.deepcopy(data_grid)  # Add this line to avoid modifying the original data_grid
+    if regularization is not None:
+        data_grid = get_regularized_data_grid(data_grid, T_list, delta_list, regularization=regularization)
+
+    if threshold is not None:
+        data_grid = remove_shots_fromdatagrid(data_grid, T_list, delta_list, threshold=threshold)
+
     for delta_idx in range(len(delta_list)):
         plot_single_entry_fromdatagrid(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, log_list=log_list, layout=layout, color_list=color_list)
 
-def plot_all_delta_fixed_T(T, T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10, name = "op_real", figsize = (12,5), log_list = None, layout="row", color_list=None):
+def plot_all_delta_fixed_T(T, T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10, name = "op_real", figsize = (12,5), 
+                           regularization = None, threshold=None, log_list = None, layout="row", color_list=None):
     data_grid = load_saved_results(T_list, delta_list, save_dir, general_dir = general_dir)
     if T in T_list:
         T_idx = T_list.index(T)
-        plot_all_delta_fixed_T_fromdatagrid(data_grid, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, log_list=log_list, layout=layout, color_list=color_list)
+        plot_all_delta_fixed_T_fromdatagrid(data_grid, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, 
+                                            regularization = regularization, threshold=threshold, log_list=log_list, layout=layout, color_list=color_list)
     else:
         print("Provided T not in the respective list.")
         return
 
-def plot_all_entries_fromdatagrid(data_grid, T_list, delta_list, N_cycles, name = "op_real", figsize = (12,5), log_list = None, layout="row", color_list=None):
+def plot_all_entries_fromdatagrid(data_grid, T_list, delta_list, N_cycles = 10, name = "op_real", figsize = (12,5), 
+                                  regularization = None, threshold=None, log_list = None, layout="row", color_list=None):
+    data_grid = copy.deepcopy(data_grid)  # Add this line to avoid modifying the original data_grid
+
+    if regularization is not None:
+        data_grid = get_regularized_data_grid(data_grid, T_list, delta_list, regularization=regularization)
+
+    if threshold is not None:
+        data_grid = remove_shots_fromdatagrid(data_grid, T_list, delta_list, threshold=threshold)
+
     for delta_idx in range(len(delta_list)):
         for T_idx in range(len(T_list)):
-            plot_single_entry_fromdatagrid(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, log_list=log_list, layout=layout, color_list=color_list)
+            plot_single_entry_fromdatagrid(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, 
+                                           log_list=log_list, layout=layout, color_list=color_list)
 
-def plot_all_entries(T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10, name = "op_real", figsize = (12,5), log_list = None, layout="row", color_list=None):
+def plot_all_entries(T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10, name = "op_real", figsize = (12,5), 
+                     regularization = None, threshold=None, log_list = None, layout="row", color_list=None):
     data_grid = load_saved_results(T_list, delta_list, save_dir, general_dir = general_dir)
-    plot_all_entries_fromdatagrid(data_grid, T_list, delta_list, N_cycles, name = name, figsize = figsize, log_list=log_list, layout=layout, color_list=color_list)
+    plot_all_entries_fromdatagrid(data_grid, T_list, delta_list, N_cycles, name = name, figsize = figsize, 
+                                  regularization = regularization, threshold=threshold, log_list=log_list, layout=layout, color_list=color_list)
 
 
 #%% functions to save or load arrays!
@@ -982,7 +1087,6 @@ def load_saved_results(T_list, delta_list, save_dir, general_dir = "phasediagram
 
 
 
-
 #%% profile output of the "order_parameter_delta_T"
 """ import cProfile 
 import pstats
@@ -1019,7 +1123,10 @@ T_list = np.linspace(1,0.1,10).tolist()
 delta_list = [0,0.1,0.2,0.3]
 N_cycles = 10
 
-data_grid = load_saved_results(T_list, delta_list, save_dir = "pd_1_noedge", general_dir = "phasediagram")
+data_grid = load_saved_results(T_list, delta_list, save_dir = "pd_1_size31_noedge", general_dir = "phasediagram")
 
-remove_shots_fromdatagrid(data_grid, T_list, delta_list, result="difference", threshold=100)
+#remove_shots_fromdatagrid(data_grid, T_list, delta_list, result="difference", threshold=100)
+get_regularized_data_grid(data_grid, T_list, delta_list, regularization = 1e-15)
+
+
 """
