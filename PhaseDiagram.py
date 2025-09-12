@@ -1128,5 +1128,4 @@ data_grid = load_saved_results(T_list, delta_list, save_dir = "pd_1_size31_noedg
 #remove_shots_fromdatagrid(data_grid, T_list, delta_list, result="difference", threshold=100)
 get_regularized_data_grid(data_grid, T_list, delta_list, regularization = 1e-15)
 
-
 """
