@@ -40,7 +40,7 @@ def plot_honeycomb(model,
         plt.gca().add_patch(polygon)
 
     if loop:
-        plaquette_indices = model.get_loop()[3] #list of sublists, where each sublists contains indices of one of 4 plaquettes at the vertices of the loop
+        plaquette_indices = model.get_loop_parallelogram()[3] #list of sublists, where each sublists contains indices of one of 4 plaquettes at the vertices of the loop
         loop_coordinates = [] #here is where we will save the 4 central plaquette coordinates, in order to draw the loop
 
         for p in plaquette_indices:
