@@ -1,4 +1,5 @@
 import numpy as np
+from bisect import bisect_right
 
 class BaseSites:
     """
@@ -289,6 +290,10 @@ class SitesOBC(BaseSites):
         # print("px", px, "py", py)
 
         # id_start = self.idxidy_to_id(px,py)
+
+        #I should improve this eventually 
+        #Approach to find the index of the bottom site of the most central plaquette, 
+        # given whatever initial model of Npx and Npy plaquettes
         index = self.index
         if index is None:
             index = len(self.ids_A)//2
@@ -302,6 +307,7 @@ class SitesOBC(BaseSites):
             while x < self.Nxsites_1//2:
                 index += 1
                 x, _ = self.id_to_idxidy(self.ids_A[index])
+
 
 
         id_start = self.ids_A[index]
@@ -343,12 +349,11 @@ class SitesOBC(BaseSites):
             id_upright = self.idxidy_to_id(idx+ 1, idy-1)
         
         return [id, id_right, id_upright, id_up, id_upleft, id_left]
-
     
-    def get_loop(self):
+    def get_loop_parallelogram(self):
         """
         Returns:
-        1. list of indeces corresponding to sites of c Majorana operators corresponding to certain loop
+        1. list of indeces corresponding to sites of c Majorana operators corresponding to certain parallelogram loop
         2. list of xx, yy, zz bonds of links of ujk present in loop
         3. the sign in front of majorana string when calculating the expectation value with FGS Wick Theorem 
 
@@ -365,7 +370,7 @@ class SitesOBC(BaseSites):
         indeces_list = []
         links_list = []
 
-        prefactor = self.get_prefactor()
+        prefactor = self.get_prefactor_parallelogram()
     
         for y in range(1,self.Nyrows):
             x_0 = y
@@ -421,9 +426,175 @@ class SitesOBC(BaseSites):
         prefactor = 1j 
 
         return prefactor, indeces_list, links_list
+    
+    def get_general_loop(self, plaquette_list, max = False):
+        """
+        Takes as input: list of odd length of numbers, each corresponding to # of plaquettes that form loop in that specific row. 
+        i.e. [4,2,4] -> central number = 2 is number of plaquettes in the central row
+
+        For now we focus on model where Npx, Npy are odd!
+
+        OBS: The loop is always centered around the central plaquette
+
+        Returns:
+        1. list of indeces corresponding to sites of c Majorana operators corresponding to certain loop
+        2. list of xx, yy, zz bonds of links of ujk present in loop
+        3. the sign in front of majorana string when calculating the expectation value with FGS Wick Theorem 
+
+        """
+
+        if len(plaquette_list) % 2 == 0:
+            raise AssertionError("plaquette_list must be of odd length")
+
+        indeces_list = self.get_diagonalbonds(edgepar=None)
+        links_list = self.links_list
+
+        indeces_list_new = []
+        links_list_new = []
+
+        for j in range(self.Npy):
+            llist_1 = []
+            llist_2 = []
+            for i in range(self.Npx):
+                llist_1.append(indeces_list[i+j*self.Npx])
+                llist_2.append(links_list[i+j*self.Npx])
+            indeces_list_new.append(llist_1)
+            links_list_new.append(llist_2)
+
+        # indeces_list_new = np.array(indeces_list).reshape((self.Npy, self.Npx))
+        # indeces_list_new = indeces_list_new.tolist()
+
+        indeces_loop_list = []
+        links_loop_list = []
 
 
-    def get_prefactor(self):
+        mid_y = self.Npy//2
+        mid_x = self.Npx//2
+        mid_plaq = len(plaquette_list)//2 
+    
+        for i, element in enumerate(plaquette_list):
+            indeces_loop_list.append(indeces_list_new[mid_y-mid_plaq+i][mid_x-(element+1)//2:mid_x+(element+1)//2])
+            links_loop_list.append(links_list_new[mid_y-mid_plaq+i][mid_x-(element+1)//2:mid_x+(element+1)//2])
+
+        indeces_loop_list_flattened = [item for sublist in indeces_loop_list for item in sublist]
+        links_loop_list_flattened = [item for sublist in links_loop_list for item in sublist]
+
+        #total number of plaquettes in the loop
+        Np = sum(plaquette_list)
+        base_prefactor = 1j**Np  # existing rule you already had
+
+        # New prefactor according to the rule you described
+        combinatorial_prefactor_count, combinatorial_prefactor_phase = self.compute_loop_prefactor(indeces_loop_list)
+
+        # You can decide how to combine them; for now return both separately
+        return {
+            "base_prefactor": base_prefactor,
+            "count_prefactor": combinatorial_prefactor_count,
+            "phase_prefactor": combinatorial_prefactor_phase,
+            "indeces_loop_list": indeces_loop_list,  # nested structure
+            "indeces_loop_list_flattened": indeces_loop_list_flattened,
+            "links_loop_list_flattened": links_loop_list_flattened
+        }
+
+    #Add to these the A prefactor!
+
+    def compute_loop_prefactor(self, indeces_loop_list):
+        """Compute the integer and a complex phase prefactor based on ordering rules.
+
+        Rule (verbatim from your description): for each id (first element of each [id, diag_id] pair)
+        starting from the SECOND sublist (row index 1):
+          1. Count how many diag_id in the PREVIOUS sublist have x-coordinate STRICTLY greater than x(id).
+          2. Count how many diag_id in the CURRENT sublist have x-coordinate <= x(id).
+        Add both counts to an accumulator. Repeat for every id in every sublist from index 1 onward.
+
+        We return:
+          - total_count: the accumulated integer
+          - phase: 1j**total_count (example complex phase if you want to reuse same convention)
+
+        Parameters
+        ----------
+        indeces_loop_list : list[list[list[int,int]]]
+            Structure like: [ row0, row1, ... ] where each row is a list of bonds [id, diag_id].
+        """
+        if not indeces_loop_list:
+            return 0, 1+0j
+        # Precompute x (idx) coordinate for every id encountered to avoid recomputation
+        x_cache = {}
+        def x_of(site_id):
+            if site_id not in x_cache:
+                x_cache[site_id] = self.id_to_idxidy(site_id)[0]
+            return x_cache[site_id]
+
+        # For each row build a sorted list of x(diag_id)
+        diag_x_rows = []
+        for row in indeces_loop_list:
+            diag_x = [x_of(bond[1]) for bond in row]
+            diag_x.sort()
+            diag_x_rows.append(diag_x)
+
+        total = 0
+        # Iterate starting from second row
+        for r in range(1, len(indeces_loop_list)):
+            prev_diag_sorted = diag_x_rows[r-1]
+            curr_diag_sorted = diag_x_rows[r]
+            len_prev = len(prev_diag_sorted)
+            for bond in indeces_loop_list[r]:
+                site_id = bond[0]
+                x_id = x_of(site_id)
+                # prev greater: number of prev diag x strictly greater than x_id
+                pos_prev = bisect_right(prev_diag_sorted, x_id)
+                greater_prev = len_prev - pos_prev
+                # same row less or equal: number of current diag x <= x_id
+                pos_curr = bisect_right(curr_diag_sorted, x_id)
+                less_equal_curr = pos_curr
+                total += greater_prev + less_equal_curr
+
+        phase = 1j ** total
+        return total, phase
+    
+    def compute_loop_prefactor(self, indeces_loop_list):
+        """Compute integer + phase prefactor with revised rule.
+
+        For each row r >= 1 and each bond k in that row (row list order assumed left→right):
+          prev_count = number of diag_id in previous row with x(diag_id_prev) > x(id_current)
+          same_row_count = k + 1   (# of diag_id in this row up to and including this bond)
+          total += prev_count + same_row_count
+        """
+        if not indeces_loop_list:
+            return 0, 1+0j
+
+        x_cache = {}
+        def x_of(site_id):
+            if site_id not in x_cache:
+                x_cache[site_id] = self.id_to_idxidy(site_id)[0]
+            return x_cache[site_id]
+
+        # Pre-sort previous-row diag_id x-coordinates
+        diag_x_rows = []
+        for row in indeces_loop_list:
+            diag_x = [x_of(bond[1]) for bond in row]
+            diag_x.sort()
+            diag_x_rows.append(diag_x)
+
+        total = 0
+        for r in range(1, len(indeces_loop_list)):
+            prev_diag_sorted = diag_x_rows[r-1]
+            len_prev = len(prev_diag_sorted)
+            for k, bond in enumerate(indeces_loop_list[r]):
+                id_site = bond[0]
+                x_id = x_of(id_site)
+                # prev greater than x_id
+                from bisect import bisect_right
+                pos_prev = bisect_right(prev_diag_sorted, x_id)
+                greater_prev = len_prev - pos_prev
+                # same row contribution = k+1
+                same_row_count = k + 1
+                total += greater_prev + same_row_count
+
+        phase = 1j ** total
+        return total, phase
+
+    def get_prefactor_parallelogram(self):
         M = self.Npx - (self.Npy+1)//2 #in this way if Npy even: I get Npy/2, if odd I get (Npy+1)/2
         # print("M: ", M)
         A = 0
@@ -448,7 +619,7 @@ class SitesOBC(BaseSites):
         # print("D ", D)
         
         return D*(-1)**(A+C)
-    
+     
     def get_current_sites(self):
         if self.Npy != self.Npx or self.Npy % 2 == 0 or self.Npy == 1:
             raise AssertionError("Npx and Npy must both be equal, odd and greater than 1")
@@ -624,8 +795,8 @@ class SitesProtBonds(BaseSites):
 
         return self.OBClist_translation(self.obc_model.get_plaquettecoordinates(id = id, idx = idx, idy = idy))
     
-    def get_loop(self):
-        prefactor, indeces_list, links_list, plaquette_indices = self.obc_model.get_loop()
+    def get_loop_parallelogram(self):
+        prefactor, indeces_list, links_list, plaquette_indices = self.obc_model.get_loop_parallelogram()
         indeces_list = self.OBClist_translation(indeces_list)
         links_list = self.OBClist_translation(links_list)
         plaquette_indices_new = []
@@ -1025,8 +1196,8 @@ class SitesPBCxy(SitesPBCx):
 
 
 # Example usage:
-model = SitesProtBonds(Npx=2, Npy=3)
-model.get_coordinates()
+# model = SitesProtBonds(Npx=2, Npy=3)
+# model.get_coordinates()
 
 
 # model = SitesPBCx(Npx=2, Npy=2)
