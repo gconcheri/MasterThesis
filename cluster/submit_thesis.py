@@ -18,6 +18,7 @@ config = {
         'partition': 'cpu',
         'qos': 'normal',
         'nodes': 1,  # number of nodes
+        'cpus-per-task': 4,  # number of cpus per task (not per node)
     },
     #  'requirements_sge': {  # for SGE
     #      'l': 'h_cpu=0:30:00,h_rss=4G',

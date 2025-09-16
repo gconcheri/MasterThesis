@@ -25,7 +25,7 @@ from joblib import Parallel, delayed
 
 #good idea would be to unify method1 and method2
 
-def order_parameter_delta_T_method1(model, fgs, T, delta, N_cycles, edgepar = None):
+def order_parameter_delta_T_method1(model, fgs, T, delta, N_cycles, edgepar = None, loop_type = 'general', loop_list = None):
     orderpar = []
     loop_0 = []
     loop_e = []
@@ -41,7 +41,7 @@ def order_parameter_delta_T_method1(model, fgs, T, delta, N_cycles, edgepar = No
     R_Ve = f.floquet_operator(Ve, T, alpha = np.pi/4.)
 
     for _ in range(N_cycles):
-        op, value_0, value_e = fgs.order_parameter()
+        op, value_0, value_e = fgs.order_parameter(type=loop_type, plaquette_list=loop_list)
         orderpar.append(op)
         loop_0.append(value_0)
         loop_e.append(value_e)
@@ -51,7 +51,7 @@ def order_parameter_delta_T_method1(model, fgs, T, delta, N_cycles, edgepar = No
         #vs doing 2 consecutive updates update(R0) -> update(R_V0) = 4*N^3 operations!
         #so the way we are doing it is computationally favorable
 
-    op, value_0, value_e = fgs.order_parameter()
+    op, value_0, value_e = fgs.order_parameter(type=loop_type, plaquette_list=loop_list)
     orderpar.append(op)
     loop_0.append(value_0)
     loop_e.append(value_e) 
@@ -59,7 +59,8 @@ def order_parameter_delta_T_method1(model, fgs, T, delta, N_cycles, edgepar = No
     return orderpar, loop_0, loop_e
 
 
-def order_parameter_delta_T_method2(model, fgs, T, delta, N_cycles, edgepar = None):
+def order_parameter_delta_T_method2(model, fgs, T, delta, N_cycles, edgepar = None, loop_type = 'general', loop_list = None):
+    """ Alternative method to compute the order parameter over N_cycles, applying the full Floquet operator each cycle. """
 
     fgs.reset_cov_0_matrix()
     fgs.reset_cov_e_matrix()
@@ -87,14 +88,14 @@ def order_parameter_delta_T_method2(model, fgs, T, delta, N_cycles, edgepar = No
     loop_e = []
     
     for _ in range(N_cycles):
-        op, value_0, value_e = fgs.order_parameter()
+        op, value_0, value_e = fgs.order_parameter(type=loop_type, plaquette_list=loop_list)
         orderpar.append(op)
         loop_0.append(value_0)
         loop_e.append(value_e)
         fgs.update_cov_0_matrix(R0)
         fgs.update_cov_e_matrix(Re)
 
-    op, value_0, value_e = fgs.order_parameter()
+    op, value_0, value_e = fgs.order_parameter(type=loop_type, plaquette_list=loop_list)
     orderpar.append(op)
     loop_0.append(value_0)
     loop_e.append(value_e) 
@@ -183,7 +184,7 @@ def ft_0_and_ft_pi(ft):
 #i.e. calculates N_shots functions (o.p.) per combination (T,delta), 
 # and then averages eta(pi) - eta(o) over these N_shots
 
-def compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, method = '1', edgepar = None, normalize = False):
+def compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, method = '1', edgepar = None, normalize = False, loop_type = 'general', loop_list = None):
     """ Computes a single entry in the data grid for given T and delta, averaging over N_shots if necessary. """
 
     if delta == 0 or N_shots < 2: 
@@ -192,9 +193,9 @@ def compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, method = '1
         #if N_shots = 0 this is just the old algorithm
 
         if method == '1':
-            orderpar, loop_0, loop_e = order_parameter_delta_T_method1(model, fgs, T, delta,  N_cycles, edgepar = edgepar)
+            orderpar, loop_0, loop_e = order_parameter_delta_T_method1(model, fgs, T, delta,  N_cycles, edgepar = edgepar, loop_type = loop_type, loop_list = loop_list)
         else: 
-            orderpar, loop_0, loop_e = order_parameter_delta_T_method2(model, fgs, T, delta,  N_cycles, edgepar = edgepar)
+            orderpar, loop_0, loop_e = order_parameter_delta_T_method2(model, fgs, T, delta,  N_cycles, edgepar = edgepar, loop_type = loop_type, loop_list = loop_list)
 
         ft, ft_0, ft_pi = fourier_time(np.array(orderpar), 1, normalize = normalize)
 
@@ -218,9 +219,9 @@ def compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, method = '1
 
         for _ in tqdm(range(N_shots), desc= f"Shots per delta = {delta:.3f}, T = {T:.3f})", leave = False):
             if method == '1':
-                orderpar, loop_0, loop_e = order_parameter_delta_T_method1(model, fgs, T, delta,  N_cycles, edgepar = edgepar)
+                orderpar, loop_0, loop_e = order_parameter_delta_T_method1(model, fgs, T, delta,  N_cycles, edgepar = edgepar, loop_type = loop_type, loop_list = loop_list)
             else: 
-                orderpar, loop_0, loop_e = order_parameter_delta_T_method2(model, fgs, T, delta,  N_cycles, edgepar = edgepar)
+                orderpar, loop_0, loop_e = order_parameter_delta_T_method2(model, fgs, T, delta,  N_cycles, edgepar = edgepar, loop_type = loop_type, loop_list = loop_list)
 
             ft, ft_0, ft_pi = fourier_time(np.array(orderpar), 1, normalize = normalize)
 
@@ -245,7 +246,7 @@ def compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, method = '1
 
 #function to obtain phase diagram without parallelization
 
-def phase_diagram_slow(model, T_list, delta_list, N_shots = 10, N_cycles = 10, method = '1', save_dir = None, general_dir = "phasediagram", edgepar = None, normalize = False):
+def phase_diagram_slow(model, T_list, delta_list, N_shots = 10, N_cycles = 10, method = '1', save_dir = None, general_dir = "phasediagram", edgepar = None, normalize = False, loop_type = 'general', loop_list = None):
     """ Computes the phase diagram over a grid of T and delta values, optionally saving results to disk. """
 
     fgs = f.FermionicGaussianRepresentation(model)
@@ -265,7 +266,7 @@ def phase_diagram_slow(model, T_list, delta_list, N_shots = 10, N_cycles = 10, m
                         with open(fpath, 'rb') as ffile:
                             data_grid[i,j] = pickle.load(ffile)
                     else:
-                        data_grid[i,j] = compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, method = method, edgepar = edgepar, normalize = normalize)
+                        data_grid[i,j] = compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, method = method, edgepar = edgepar, normalize = normalize, loop_type = loop_type, loop_list = loop_list)
                         # Save to disk if save_dir is provided
                         with open(fpath, 'wb') as ffile:
                             pickle.dump(data_grid[i,j], ffile)
@@ -275,7 +276,7 @@ def phase_diagram_slow(model, T_list, delta_list, N_shots = 10, N_cycles = 10, m
         for i, delta in enumerate(tqdm(delta_list, desc="Deltas")):
             for j, T in enumerate(tqdm(T_list, desc=f"T for delta={delta}", leave=False)):
                 
-                data_grid[i,j] = compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, method = method, edgepar = edgepar, normalize = normalize)
+                data_grid[i,j] = compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, method = method, edgepar = edgepar, normalize = normalize, loop_type = loop_type, loop_list = loop_list)
 
 
     freqs = frequencies(N_cycles+1)
@@ -285,7 +286,7 @@ def phase_diagram_slow(model, T_list, delta_list, N_shots = 10, N_cycles = 10, m
 
 #%% FAST algorithm!
 
-def compute_single_shot(model, T, delta, N_cycles, method = '1', edgepar = None, normalize = False):
+def compute_single_shot(model, T, delta, N_cycles, method = '1', edgepar = None, normalize = False, loop_type = 'general', loop_list = None):
     """
     Computes a single shot of the phase diagram for given T and delta.
     """
@@ -293,9 +294,9 @@ def compute_single_shot(model, T, delta, N_cycles, method = '1', edgepar = None,
     fgs = f.FermionicGaussianRepresentation(model)
 
     if method == '1':
-        orderpar, loop_0, loop_e= order_parameter_delta_T_method1(model, fgs, T, delta,  N_cycles, edgepar = edgepar)
+        orderpar, loop_0, loop_e= order_parameter_delta_T_method1(model, fgs, T, delta,  N_cycles, edgepar = edgepar, loop_type = loop_type, loop_list = loop_list)
     else:
-        orderpar, loop_0, loop_e = order_parameter_delta_T_method2(model, fgs, T, delta,  N_cycles, edgepar = edgepar)
+        orderpar, loop_0, loop_e = order_parameter_delta_T_method2(model, fgs, T, delta,  N_cycles, edgepar = edgepar, loop_type = loop_type, loop_list = loop_list)
 
     ft, ft_0, ft_pi = fourier_time(np.array(orderpar), 1, normalize = normalize)
     result = np.abs(ft_pi) - np.abs(ft_0)
@@ -308,17 +309,17 @@ def compute_single_shot(model, T, delta, N_cycles, method = '1', edgepar = None,
         'result': result
     }
 
-def compute_order_param_entry(model, T, delta, N_cycles, N_shots, method='1', save_dir=None, general_dir = "phasediagram", edgepar = None, normalize = False):
+def compute_order_param_entry(model, T, delta, N_cycles, N_shots, method='1', save_dir=None, general_dir = "phasediagram", edgepar = None, normalize = False, loop_type = 'general', loop_list = None):
     """ Computes a single entry in the data grid for given T and delta, averaging over N_shots if necessary. """
     if delta == 0 or N_shots < 2:
             #no need to average when delta = 0 because no random disorder is added in this case!
             #if N_shots = 0 this is just the old algorithm
-        
-        entry = compute_single_shot(model, T, delta, N_cycles, method, edgepar = edgepar, normalize=normalize)
-    
+
+        entry = compute_single_shot(model, T, delta, N_cycles, method, edgepar = edgepar, normalize=normalize, loop_type = loop_type, loop_list = loop_list)
+
     else:
         shot_results = Parallel(n_jobs=-1)(
-            delayed(compute_single_shot)(model, T, delta, N_cycles, method, edgepar = edgepar, normalize=normalize)
+            delayed(compute_single_shot)(model, T, delta, N_cycles, method, edgepar = edgepar, normalize=normalize, loop_type = loop_type, loop_list = loop_list)
             for _ in range(N_shots)
         )
 
@@ -348,7 +349,7 @@ def compute_order_param_entry(model, T, delta, N_cycles, N_shots, method='1', sa
 
     return delta, T, entry
 
-def phase_diagram_fast(model, T_list, delta_list, N_cycles, N_shots=1, n_jobs=-1, method='1', save_dir=None, general_dir = "phasediagram", edgepar = None, normalize = False):
+def phase_diagram_fast(model, T_list, delta_list, N_cycles, N_shots=1, n_jobs=-1, method='1', save_dir=None, general_dir = "phasediagram", edgepar = None, normalize = False, loop_type = 'general', loop_list = None):
     """ Computes the phase diagram over a grid of T and delta values, optionally saving results to disk. """
     tasks = []
     desc = f"Computing {(len(delta_list) * len(T_list))} (delta, T) points"
@@ -373,7 +374,7 @@ def phase_diagram_fast(model, T_list, delta_list, N_cycles, N_shots=1, n_jobs=-1
 
     # Compute missing entries in parallel
     computed_results = Parallel(n_jobs=n_jobs)(
-        delayed(compute_order_param_entry)(model, T, delta, N_cycles, N_shots, method, save_dir, general_dir, edgepar, normalize)
+        delayed(compute_order_param_entry)(model, T, delta, N_cycles, N_shots, method, save_dir, general_dir, edgepar, normalize, loop_type, loop_list)
         for (delta, T, _) in tqdm(to_compute, desc="Computing missing entries")
     )
 

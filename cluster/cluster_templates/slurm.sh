@@ -4,8 +4,8 @@
 #SBATCH --output=./{jobname}.%A_%3a.out  # %J=jobid.step, %N=node.
 #
 # To support getting emails, adjust the following two lines and remove the `# `,i.e. make them start with `#SBATCH `
-# #SBATCH --mail-type fail  # or `fail,end`, but it's not recommended
-# #SBATCH --mail-user your.email@tum.de  # adjust...
+#SBATCH --mail-type=ALL  # or `fail,end`, but it's not recommended
+#SBATCH --mail-user=giovanni.concheri@tum.de  # adjust...
 # NOTE: use ONLY YOUR UNIVERSITY EMAIL, DON'T USE/FORWARD EMAIL to other email providers like gmail.com!
 # You can get a lot of emails from the cluster, and other email providers then sometimes mark the whole university as sending spam.
 # This might results in your professor not being able to write emails to his friends anymore...

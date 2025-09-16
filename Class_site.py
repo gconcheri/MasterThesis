@@ -93,7 +93,7 @@ class SitesOBC(BaseSites):
         self.ids = np.arange(self.Nsites)
         self.partition = self.get_partition()
         self.ids_A = [id for id in self.ids if self.partition[id] == 'A']
-        self.ids_B = [id for id in self.ids if self.partition[id] == 'B']
+        self.ids_B = [id for id in self.ids if self.partition[id] == 'B']  
         
         
     def id_to_idxidy(self, id):
@@ -453,7 +453,7 @@ class SitesOBC(BaseSites):
 
         return prefactor, indeces_list, links_list
     
-    def get_general_loop(self, plaquette_list, max = False):
+    def get_general_loop(self, plaquette_list = None):
         """
         Takes as input: list of odd length of numbers, each corresponding to # of plaquettes that form loop in that specific row. 
         i.e. [4,2,4] -> central number = 2 is number of plaquettes in the central row
@@ -468,53 +468,69 @@ class SitesOBC(BaseSites):
         3. the sign in front of majorana string when calculating the expectation value with FGS Wick Theorem 
 
         """
-        if max:
-            length = [self.Npx-1, self.Npx-2]
-            plaquette_list = [length[i%2] for i in range(self.Npy-1)]
 
-        if len(plaquette_list) % 2 == 0:
-            raise AssertionError("plaquette_list must be of odd length")
+        length = [self.Npx-1, self.Npx-2]
+        max_plaquette_list = [length[i%2] for i in range(self.Npy-1)]
+
+        if plaquette_list is not None:
+            for element1, element2 in zip(plaquette_list, max_plaquette_list):
+                if element1 > element2:
+                    raise AssertionError("Each element of plaquette_list must be less than or equal to corresponding element in max_plaquette_list: ", max_plaquette_list)
+
+        if plaquette_list is None:
+            plaquette_list = max_plaquette_list
+
+
+        # if len(plaquette_list) % 2 == 0:
+        #     raise AssertionError("plaquette_list must be of odd length")
 
         indeces_list = self.get_diagonalbonds(edgepar=None)
-        links_list = self.links_list
 
         indeces_list_new = []
-        links_list_new = []
 
         for j in range(self.Npy):
             llist_1 = []
-            llist_2 = []
             for i in range(self.Npx):
                 llist_1.append(indeces_list[i+j*self.Npx])
-                llist_2.append(links_list[i+j*self.Npx])
             indeces_list_new.append(llist_1)
-            links_list_new.append(llist_2)
 
         indeces_loop_list = []
-        links_loop_list = []
 
-
-        mid_y = self.Npy//2
-        mid_x = self.Npx//2
-        mid_plaq = len(plaquette_list)//2 
+        mid_row_idx = self.Npy//2 #middle row index in indeces_list_new
+        mid_plaq_idx = (self.Npx-1)//2 #middle plaquette index in each row of indeces_list_new
+        loop_half_length = (len(plaquette_list)-1)//2
+        loop_start_row = mid_row_idx - loop_half_length
     
         for i, element in enumerate(plaquette_list):
-            indeces_loop_list.append(indeces_list_new[mid_y-mid_plaq+i][mid_x-(element+1)//2:mid_x+(element+1)//2])
-            links_loop_list.append(links_list_new[mid_y-mid_plaq+i][mid_x-(element+1)//2:mid_x+(element+1)//2])
+            if self.Npx % 2 == 0:
+                indeces_loop_list.append(indeces_list_new[loop_start_row+i][mid_plaq_idx-(element-1)//2:mid_plaq_idx+(element+2)//2])
+            else:
+                indeces_loop_list.append(indeces_list_new[loop_start_row+i][mid_plaq_idx-(element//2):mid_plaq_idx+(element+1)//2])
 
         indeces_loop_list_flattened = [item for sublist in indeces_loop_list for item in sublist]
-        links_loop_list_flattened = [item for sublist in links_loop_list for subsublist in sublist for item in subsublist]
+
+        links_list = []
+
+        for id, id_diag in indeces_loop_list_flattened:
+            id_next = id + 1
+            id_nextnext = id + 2
+            links_list.append([id, id_next]) #xbonds
+            links_list.append([id_nextnext, id_next]) #ybonds
+            links_list.append([id_diag, id_nextnext]) #zbonds
+        
+        indeces_loop_list_flattened = [site for bond in indeces_loop_list_flattened for site in bond]
 
         #total number of plaquettes in the loop
         Np = sum(plaquette_list)
-        base_prefactor = 1j**Np  # existing rule you already had
 
-        # New prefactor according to the rule you described
+        #base prefactor due to number of plaquettes
+        base_prefactor = 1j**Np  
+        #prefactor due to ordering of Majorana operators, following swapping anticommutation relations
         _, prefactor = self.compute_loop_prefactor(indeces_loop_list)
 
         prefactor = prefactor * base_prefactor
 
-        return prefactor, indeces_loop_list_flattened, links_loop_list_flattened
+        return prefactor, indeces_loop_list_flattened, links_list
 
 
     # def compute_loop_prefactor(self, indeces_loop_list):
@@ -631,7 +647,7 @@ class SitesOBC(BaseSites):
 
         return total, prefactor
      
-    def get_loop(self, plaquette_list = None, max = False, type = 'general'):
+    def get_loop(self, plaquette_list = None, type = 'general'):
         if type == 'parallelogram':
             prefactor, indeces_list, links_list, plaquette_indices = self.get_loop_parallelogram()
             return prefactor, indeces_list, links_list, plaquette_indices
@@ -639,10 +655,8 @@ class SitesOBC(BaseSites):
             prefactor, indeces_list, links_list = self.get_small_loop()
             return prefactor, indeces_list, links_list
         elif type == 'general':
-            if plaquette_list is None and not max:
-                raise AssertionError("Either plaquette_list must be provided or max must be set to True")
-            prefactor, indeces_list, links_list = self.get_general_loop(plaquette_list, max)
-        return prefactor, indeces_list, links_list
+            prefactor, indeces_list, links_list = self.get_general_loop(plaquette_list = plaquette_list)
+            return prefactor, indeces_list, links_list
 
     def get_current_sites(self):
         if self.Npy != self.Npx or self.Npy % 2 == 0 or self.Npy == 1:
@@ -834,7 +848,24 @@ class SitesProtBonds(BaseSites):
         indeces_list = self.OBClist_translation(indeces_list)
         links_list = self.OBClist_translation(links_list)        
         return prefactor, indeces_list, links_list
-
+    
+    def get_general_loop(self, plaquette_list = None):
+        prefactor, indeces_list, links_list = self.obc_model.get_general_loop(plaquette_list = plaquette_list)
+        indeces_list = self.OBClist_translation(indeces_list)
+        links_list = self.OBClist_translation(links_list)        
+        return prefactor, indeces_list, links_list
+    
+    def get_loop(self, plaquette_list = None, type = 'general'):
+        if type == 'parallelogram':
+            prefactor, indeces_list, links_list, plaquette_indices = self.get_loop_parallelogram()
+            return prefactor, indeces_list, links_list, plaquette_indices
+        elif type == 'small':
+            prefactor, indeces_list, links_list = self.get_small_loop()
+            return prefactor, indeces_list, links_list
+        elif type == 'general':
+            prefactor, indeces_list, links_list = self.get_general_loop(plaquette_list = plaquette_list)
+            return prefactor, indeces_list, links_list
+        
     
     def OBClist_translation(self, lst):
         if isinstance(lst[0], list) or isinstance(lst[0], tuple):

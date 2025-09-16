@@ -166,13 +166,9 @@ class FermionicGaussianRepresentation:
 		return prefactor_maj*pf.pfaffian(Cov_reduced)
 	
 
-	def expectation_value_loop(self, small_loop = False):
+	def expectation_value_loop(self, type = 'general', plaquette_list = None):
 
-		if small_loop:
-			# for small loop, we use the loop operator defined in the model
-			prefactor, indices, links = self.model.get_small_loop()
-		else:
-			prefactor, indices, links, _ = self.model.get_loop()
+		prefactor, indices, links = self.model.get_loop(plaquette_list = plaquette_list, type = type)
 
 		u = u_config(self.model, type="Anyon")
 
@@ -189,7 +185,7 @@ class FermionicGaussianRepresentation:
 		return exp_value_0, exp_value_e
 	
 	
-	def order_parameter(self, small_loop = False):
+	def order_parameter(self, type = 'general', plaquette_list = None):
 		"""
 		given loop op. = O
 		We calculate Order parameter = <psi_e|O|psi_e>/<psi_0|O|psi_0> 
@@ -197,7 +193,7 @@ class FermionicGaussianRepresentation:
 		loop operator written as string of majoranas gamma_i ... gamma_j
 		"""
 
-		exp_value_0, exp_value_e = self.expectation_value_loop(small_loop=small_loop)
+		exp_value_0, exp_value_e = self.expectation_value_loop(type = type, plaquette_list = plaquette_list)
 
 		return exp_value_e/exp_value_0, exp_value_0, exp_value_e
 	

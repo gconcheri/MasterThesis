@@ -13,7 +13,7 @@ from numba import njit
 # at a specific disorder delta and coupling/time term T
 
 
-def order_parameter_delta_T(model, fgs, T, delta, N_cycles, edgepar = None):
+def order_parameter_delta_T(model, fgs, T, delta, N_cycles, edgepar = None, loop_type = 'general', loop_list = None):
     orderpar = []
     loop_0 = []
     loop_e = []
@@ -29,7 +29,7 @@ def order_parameter_delta_T(model, fgs, T, delta, N_cycles, edgepar = None):
     R_Ve = f.floquet_operator(Ve, T, alpha = np.pi/4.)
 
     for _ in range(N_cycles):
-        op, value_0, value_e = fgs.order_parameter()
+        op, value_0, value_e = fgs.order_parameter(type=loop_type, plaquette_list=loop_list)
         orderpar.append(op)
         loop_0.append(value_0)
         loop_e.append(value_e)
@@ -39,7 +39,7 @@ def order_parameter_delta_T(model, fgs, T, delta, N_cycles, edgepar = None):
         #vs doing 2 consecutive updates update(R0) -> update(R_V0) = 4*N^3 operations!
         #so the way we are doing it is computationally favorable
 
-    op, value_0, value_e = fgs.order_parameter()
+    op, value_0, value_e = fgs.order_parameter(type=loop_type, plaquette_list=loop_list)
     orderpar.append(op)
     loop_0.append(value_0)
     loop_e.append(value_e) 
@@ -129,7 +129,7 @@ def ft_0_and_ft_pi(ft):
 #i.e. calculates N_shots functions (o.p.) per combination (T,delta), 
 # and then averages eta(pi) - eta(o) over these N_shots
 
-def compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, save_dir):
+def compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, save_dir, loop_type = 'general', loop_list = None):
     """ Computes a single entry in the data grid for given T and delta, averaging over N_shots if necessary. """
     print("computing entry for: ", f"T = {T}, delta = {delta}, for {N_shots} shots")
 
@@ -143,7 +143,7 @@ def compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, save_dir):
             #N_shots = 0 equivalent to N_shots = 1
             #if N_shots = 0 this is just the old algorithm
 
-            orderpar, loop_0, loop_e = order_parameter_delta_T(model, fgs, T, delta,  N_cycles)
+            orderpar, loop_0, loop_e = order_parameter_delta_T(model, fgs, T, delta,  N_cycles, loop_type=loop_type, loop_list=loop_list)
 
             ft, _, _ = fourier_time(np.array(orderpar), 1)
 
@@ -164,7 +164,7 @@ def compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, save_dir):
 
             for i in range(N_shots):
                 print(f"  shot {i+1} of {N_shots}")
-                orderpar, loop_0, loop_e = order_parameter_delta_T(model, fgs, T, delta,  N_cycles)
+                orderpar, loop_0, loop_e = order_parameter_delta_T(model, fgs, T, delta,  N_cycles, loop_type=loop_type, loop_list=loop_list)
 
                 ft, _, _ = fourier_time(np.array(orderpar), 1)
 
@@ -197,16 +197,18 @@ def simulation(**kwargs):
     system_size = kwargs.get('system_size')
     edge = kwargs.get('edge', False)
     save_dir = kwargs.get('save_dir', None)
+    loop_type = kwargs.get('loop_type', 'general')
+    loop_list = kwargs.get('loop_list', None)
 
     # Check required parameters
     if None in (T, delta, N_cycles, N_shots, system_size):
         raise ValueError("Missing required simulation parameters.")
 
     if save_dir is None:
-        save_dir = "pd" + f"_size{system_size}" + f"_Nshots{N_shots}" + f"_cycles{N_cycles}" 
+        save_dir = "pd" + f"_size{system_size}" + f"_Nshots{N_shots}" + f"_cycles{N_cycles}" + ("_edge" if edge else "_noedge") + f"_{loop_type}_loop"
 
     model = site.SitesOBC(Npx = system_size, Npy = system_size, edge = edge)
     fgs = f.FreeFermionRepresentation(model)
 
     # Loop over all combinations of T and delta to compute data grid entries
-    compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, save_dir)
+    compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, save_dir, loop_type=loop_type, loop_list=loop_list)
