@@ -10,7 +10,7 @@ def plot_honeycomb(model,
                     fig_size=(20,20), 
                     highlight_idxidy=None, sites=None, dotsize = 300, highlight_color='orange', #inputs to highlight sites
                     plaquette_site= None, #input to shade a certain plaquette with lowest site= plaquette_site
-                    loop = False,
+                    loop_parallelogram = False,
                     plot_anyon_bonds=False, #input to draw anyon bonds
                     plot_diagonal_bonds = False, #input to draw diagonal bonds (explained above)
                     otherbonds_list = None, #input to draw any list of bonds
@@ -39,7 +39,7 @@ def plot_honeycomb(model,
         polygon = Polygon(plaquette_coords, closed=True, facecolor='grey', alpha=0.3, edgecolor='none')
         plt.gca().add_patch(polygon)
 
-    if loop:
+    if loop_parallelogram:
         plaquette_indices = model.get_loop_parallelogram()[3] #list of sublists, where each sublists contains indices of one of 4 plaquettes at the vertices of the loop
         loop_coordinates = [] #here is where we will save the 4 central plaquette coordinates, in order to draw the loop
 
