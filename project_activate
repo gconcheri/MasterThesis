@@ -15,6 +15,9 @@ export PROJECT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null 
 # this allows to directly call `cluster_jobs.py submit ...` even from other directories
 export PATH="$PROJECT_DIR:$PATH"
 
+# Add project folder to Python search path
+export PYTHONPATH="$PROJECT_DIR:$PYTHONPATH"
+
 # if needed, adjust more, e.g.
 # export PATH="/mount/packs/intelpython3/bin:$PYTHONPATH"
 # export PYTHONPATH="$PROJECT_DIR/TeNPy:$PYTHONPATH"
