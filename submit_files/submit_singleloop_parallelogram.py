@@ -35,11 +35,9 @@ config = {
 # Select which lists to use by name from variables_phasediagram_simulation.py
 delta_list_name = 'delta_list_2'
 T_list_name = 'T_list_1'
-# loop_list_name = 'loop_1'
 
 delta_list = getattr(vps, delta_list_name)
 T_list = getattr(vps, T_list_name)
-# loop_list = getattr(vps, loop_list_name)
 
 N_shots = 15
 system_size = 31
@@ -49,12 +47,13 @@ edge = True
 
 save_dir = (
     "pd"
+    + f"_{T_list_name}"
+    + f"_{delta_list_name}"
     + f"_size{system_size}"
     + f"_Nshots{N_shots}"
     + f"_cycles{N_cycles}"
     + ("_edge" if edge else "_noedge")
     + f"_{loop_type}"
-    + f"_{loop_list_name}"
 )
 
 
@@ -69,8 +68,6 @@ for delta in delta_list:
             'edge': edge,
             'save_dir': save_dir,
             'loop_type': loop_type,
-            'loop_list_name': loop_list_name,  # pass the name (for logging/paths)
-            'loop_list': loop_list
         }
         config['task_parameters'].append(copy.deepcopy(kwargs))
 

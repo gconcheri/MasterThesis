@@ -43,6 +43,8 @@ for loop_list_name in loop_list_names:
 
     save_dir = (
         "pd"
+        + f"_{T_list_name}"
+        + f"_{delta_list_name}"
         + f"_size{system_size}"
         + f"_Nshots{N_shots}"
         + f"_cycles{N_cycles}"
