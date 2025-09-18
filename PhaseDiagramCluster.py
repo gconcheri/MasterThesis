@@ -23,19 +23,26 @@ def order_parameter_delta_T(model, fgs, T, delta, N_cycles, edgepar = None, loop
 
     _, _, _, R0 = fgs.floquet_operator_ham(T)
     _, _, _, Re = fgs.floquet_operator_ham(T, anyon=True)
-    V0 = f.generate_disorder_term(model, fgs.Cov, delta, edgepar = edgepar)
-    Ve = f.generate_disorder_term(model, fgs.Cov, delta, type="Anyon", edgepar = edgepar)
-    R_V0 = f.floquet_operator(V0, T, alpha = np.pi/4.)
-    R_Ve = f.floquet_operator(Ve, T, alpha = np.pi/4.)
+
+    if delta != 0:
+        V0 = f.generate_disorder_term(model, fgs.Cov, delta, edgepar = edgepar)
+        Ve = f.generate_disorder_term(model, fgs.Cov, delta, type="Anyon", edgepar = edgepar)
+        R_V0 = f.floquet_operator(V0, T, alpha = np.pi/4.)
+        R_Ve = f.floquet_operator(Ve, T, alpha = np.pi/4.)
+        R_V0_R0 = R_V0 @ R0
+        R_Ve_Re = R_Ve @ Re
+    else:
+        R_V0_R0 = R0
+        R_Ve_Re = Re
 
     for _ in range(N_cycles):
         op, value_0, value_e = fgs.order_parameter(type=loop_type, plaquette_list=loop_list)
         orderpar.append(op)
         loop_0.append(value_0)
         loop_e.append(value_e)
-        fgs.update_cov_0_matrix(R_V0 @ R0) 
-        fgs.update_cov_e_matrix(R_Ve @ Re)
-        # this approach requires 3*N^3 operations 
+        fgs.update_cov_0_matrix(R_V0_R0)
+        fgs.update_cov_e_matrix(R_Ve_Re)
+        # this approach requires 3*N^3 operations
         #vs doing 2 consecutive updates update(R0) -> update(R_V0) = 4*N^3 operations!
         #so the way we are doing it is computationally favorable
 
