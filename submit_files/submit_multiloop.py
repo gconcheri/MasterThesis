@@ -13,10 +13,10 @@ config = {
     },
     'task_parameters': [],
     'requirements_slurm': {
-        'time': '24-00:00:00', # d-hh:mm:ss
+        'time': '5-00:00:00', # d-hh:mm:ss
         'mem': '4G',
         'partition': 'cpu',
-        'qos': 'normal',
+        'qos': 'longrun',
         'nodes': 1,
         'cpus-per-task': 20,
     },
