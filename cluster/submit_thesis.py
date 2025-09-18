@@ -8,8 +8,8 @@ config = {
     'jobname': 'PhaseDiagram',
     'task': {
         'type': 'PythonFunctionCall',
-        'module': 'simulation',
-        'function': 'run_simulation'
+        'module': 'PhaseDiagramCluster',
+        'function': 'simulation'
     },
     'task_parameters': [],  # list of dict containing the **kwargs given to the `function`
     'requirements_slurm': {  # passed on to SLURM
