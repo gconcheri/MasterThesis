@@ -215,7 +215,7 @@ def simulation(**kwargs):
         save_dir = "pd" + f"_size{system_size}" + f"_Nshots{N_shots}" + f"_cycles{N_cycles}" + ("_edge" if edge else "_noedge") + f"_{loop_type}_loop" + f"_{loop_list}"
 
     model = site.SitesOBC(Npx = system_size, Npy = system_size, edge = edge)
-    fgs = f.FreeFermionRepresentation(model)
+    fgs = f.FermionicGaussianRepresentation(model)
 
     # Loop over all combinations of T and delta to compute data grid entries
     compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, save_dir, loop_type=loop_type, loop_list=loop_list)
