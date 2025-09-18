@@ -13,7 +13,7 @@ config = {
     },
     'task_parameters': [],
     'requirements_slurm': {
-        'time': '1-23:00:00',
+        'time': '24-00:00:00', # d-hh:mm:ss
         'mem': '4G',
         'partition': 'cpu',
         'qos': 'normal',
@@ -24,15 +24,15 @@ config = {
 }
 
 # Choose which delta/T list set to use
-delta_list_name = 'delta_list_0'
-T_list_name = 'T_list_0'
+delta_list_name = 'delta_list_2'
+T_list_name = 'T_list_1'
 delta_list = getattr(vps, delta_list_name)
 T_list = getattr(vps, T_list_name)
 
 # Choose multiple loop list names to sweep
-loop_list_names = ['loop_1', 'loop_2', 'loop_3']  # extend as needed
+loop_list_names = ['loop_0', 'loop_1', 'loop_2', 'loop_3']  # extend as needed
 
-N_shots = 10
+N_shots = 15
 system_size = 31
 N_cycles = 10
 loop_type = 'general'

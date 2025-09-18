@@ -33,18 +33,18 @@ config = {
 }
 
 # Select which lists to use by name from variables_phasediagram_simulation.py
-delta_list_name = 'delta_list_0'
-T_list_name = 'T_list_0'
-loop_list_name = 'loop_1'
+delta_list_name = 'delta_list_2'
+T_list_name = 'T_list_1'
+# loop_list_name = 'loop_1'
 
 delta_list = getattr(vps, delta_list_name)
 T_list = getattr(vps, T_list_name)
-loop_list = getattr(vps, loop_list_name)
+# loop_list = getattr(vps, loop_list_name)
 
-N_shots = 10
+N_shots = 15
 system_size = 31
 N_cycles = 10
-loop_type = 'general'
+loop_type = 'parallelogram'
 edge = True
 
 save_dir = (
