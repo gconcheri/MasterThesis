@@ -701,7 +701,7 @@ def plot_phase_diagram(T_list, delta_list, save_dir, general_dir = "phasediagram
             filename = filename + f"_thresh{threshold}"
         if regularization is not None:
             filename = filename + f"_reg{regularization}"
-        filename = filename + ".png"
+        filename = filename + ".svg"
 
     plot_phase_diagram_fromdatagrid(data_grid[:len(delta_list), :len(T_list)], T_list, delta_list, figsize = figsize, result = result, bool_log = bool_log,
                                     regularization = regularization, threshold = threshold, vmin = vmin, vmax = vmax,
