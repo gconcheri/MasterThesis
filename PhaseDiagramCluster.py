@@ -1,11 +1,12 @@
 import numpy as np
-
-import Class_site as site
-import free_fermion_representation as f
 import pickle
 import os
 
+import Class_site as site
+import free_fermion_representation as f
 from numba import njit
+
+import variables_phasediagram_simulation as vps
 
 #%% order_parameter_delta_T functions
 
@@ -206,14 +207,29 @@ def simulation(**kwargs):
     save_dir = kwargs.get('save_dir', None)
     loop_type = kwargs.get('loop_type', 'general')
     loop_list = kwargs.get('loop_list', None)
+    loop_list_name = kwargs.get('loop_list_name', None)
+
 
     # Check required parameters
     if None in (T, delta, N_cycles, N_shots, system_size):
         raise ValueError("Missing required simulation parameters.")
 
-    if save_dir is None:
-        save_dir = "pd" + f"_size{system_size}" + f"_Nshots{N_shots}" + f"_cycles{N_cycles}" + ("_edge" if edge else "_noedge") + f"_{loop_type}_loop" + f"_{loop_list}"
+    # If only the name is provided, resolve to the actual list
+    if loop_list is None and loop_list_name is not None:
+        loop_list = getattr(vps, loop_list_name)
 
+    # Build a default save_dir if not provided
+    if save_dir is None:
+        save_dir = (
+            "pd"
+            + f"_size{system_size}"
+            + f"_Nshots{N_shots}"
+            + f"_cycles{N_cycles}"
+            + ("_edge" if edge else "_noedge")
+            + f"_{loop_type}_loop"
+            + (f"_{loop_list_name}" if loop_list_name else "")
+        )
+        
     model = site.SitesOBC(Npx = system_size, Npy = system_size, edge = edge)
     fgs = f.FermionicGaussianRepresentation(model)
 
