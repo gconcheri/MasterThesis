@@ -34,8 +34,8 @@ TO DO:
 
 change file names, figure names or way I store the images or phasediagrams, either storing the images within folders where the phasediagram is or storing all the images together but with long names to differentiate them
 
-finish excel file
+finish excel file: cancella caso dei shots con regularization, perchè i shots vengono rimossi solo con threshold
 
 at this point maybe is better to save both excel and images that refer to the same phase diagram in the same folder, and not putting all images, excels together
 
-ok?
+maybe even actually add all the files in respective folders and then add paths to all files such that I can use files even if they are in different folder: maybe there is a easier way! i.e. check project_activate
