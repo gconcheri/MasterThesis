@@ -37,3 +37,5 @@ change file names, figure names or way I store the images or phasediagrams, eith
 finish excel file
 
 at this point maybe is better to save both excel and images that refer to the same phase diagram in the same folder, and not putting all images, excels together
+
+ok?
