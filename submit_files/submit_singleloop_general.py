@@ -48,11 +48,10 @@ loop_type = 'general'
 edge = True
 
 save_dir = (
-    "pd"
-    + f"_{T_list_name}"
+    f"_{T_list_name}"
     + f"_{delta_list_name}"
     + f"_size{system_size}"
-    + f"_Nshots{N_shots}"
+    + f"_shots{N_shots}"
     + f"_cycles{N_cycles}"
     + ("_edge" if edge else "_noedge")
     + f"_{loop_type}"
@@ -61,6 +60,7 @@ save_dir = (
 
 
 for delta in delta_list:
+    print("computing delta: ", delta)
     for T in T_list:
         kwargs = {
             'T': T,

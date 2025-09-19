@@ -168,7 +168,7 @@ class FermionicGaussianRepresentation:
 
 	def expectation_value_loop(self, type = 'general', plaquette_list = None):
 
-		prefactor, indices, links = self.model.get_loop(plaquette_list = plaquette_list, type = type)
+		prefactor, indices, links = self.model.get_loop(plaquette_list = plaquette_list, type = type)[:3]
 
 		u = u_config(self.model, type="Anyon")
 

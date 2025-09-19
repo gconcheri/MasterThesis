@@ -28,3 +28,12 @@ here I implement the class for PBC along both x and y directions, defined in Cla
 
 # test_floquet.ipynb:
 Here I test whether the Floquet operator defined as R=e^4h works correctly!
+
+
+TO DO:
+
+change file names, figure names or way I store the images or phasediagrams, either storing the images within folders where the phasediagram is or storing all the images together but with long names to differentiate them
+
+finish excel file
+
+at this point maybe is better to save both excel and images that refer to the same phase diagram in the same folder, and not putting all images, excels together
