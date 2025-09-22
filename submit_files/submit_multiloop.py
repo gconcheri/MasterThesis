@@ -14,7 +14,7 @@ config = {
     'task_parameters': [],
     'requirements_slurm': {
         'time': '5-00:00:00', # d-hh:mm:ss
-        'mem': '4G',
+        'mem': '8G',
         'partition': 'cpu',
         'qos': 'longrun',
         'nodes': 1,
