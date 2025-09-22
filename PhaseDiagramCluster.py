@@ -141,6 +141,7 @@ def compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, save_dir, l
     """ Computes a single entry in the data grid for given T and delta, averaging over N_shots if necessary. """
     #print("computing entry for: ", f"T = {T}, delta = {delta}, for {N_shots} shots")
 
+    save_dir = os.path.join(save_dir, 'data')
     os.makedirs(save_dir, exist_ok=True)
     fname = f"delta_{delta:.5f}_T_{T:.5f}.pkl"
     fpath = os.path.join(save_dir, fname)

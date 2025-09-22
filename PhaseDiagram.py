@@ -261,11 +261,12 @@ def phase_diagram_slow(model, T_list, delta_list, N_shots = 10, N_cycles = 10, m
 
     if save_dir is not None:
 
+        full_dir = os.path.join(general_dir, save_dir, 'data')
+        os.makedirs(full_dir, exist_ok=True)
+
         for i, delta in enumerate(tqdm(delta_list, desc="Deltas")):
             for j, T in enumerate(tqdm(T_list, desc=f"T for delta={delta}", leave=False)):
         
-                    full_dir = os.path.join(general_dir, save_dir)
-                    os.makedirs(full_dir, exist_ok=True)
                     fname = f"delta_{delta:.5f}_T_{T:.5f}.pkl"
                     fpath = os.path.join(full_dir, fname)
 
@@ -363,7 +364,7 @@ def phase_diagram_fast(model, T_list, delta_list, N_cycles, N_shots=1, n_jobs=-1
     
     for delta, T in tqdm(product(delta_list, T_list), desc=desc):
         fname = f"delta_{delta:.5f}_T_{T:.5f}.pkl"
-        fpath = os.path.join(general_dir, os.path.join(save_dir, fname)) if save_dir else None
+        fpath = os.path.join(general_dir, os.path.join(save_dir, 'data', fname)) if save_dir else None
 
         # Check if already computed
         if save_dir is not None and os.path.exists(fpath):
@@ -484,39 +485,13 @@ def phase_diagram_fast_otherversion(model, T_list, delta_list, N_cycles, N_shots
 
 #%% Manipulations on data grid
 
-#this code is not very robust, since I only change entry['op_ft'] and 
-#do not update all other elements in entry
-#i.e. I could not use it before regularizing data grid, only after!
-def remove_shots_fromdatagrid_old(data_grid, T_list, delta_list, result="difference", threshold=100):
-    """
-    Removes shots from data grid entries if the value for that shot exceeds the threshold.
-    Works for both 'difference' and 'ratio' result types.
-    """
-    for i in range(len(delta_list)):
-        for j in range(len(T_list)):
-            entry = data_grid[i, j]
-            if entry is not None:
-                op_ft = entry['op_ft']
-                # Only process if multi-shot (list)
-                if isinstance(op_ft, list):
-                    filtered_op_ft = []
-                    for ft in op_ft:
-                        ft_0, ft_pi = ft_0_and_ft_pi(ft)
-                        if result == "difference":
-                            value = np.abs(ft_pi) - np.abs(ft_0)
-                        elif result == "ratio":
-                            value = np.abs(ft_pi) / np.abs(ft_0) if np.abs(ft_0) != 0 else np.inf
-
-                        if np.abs(value) <= threshold:
-                            filtered_op_ft.append(ft)
-                    entry['op_ft'] = filtered_op_ft
-    return data_grid
-
 def remove_shots_fromdatagrid(data_grid, T_list, delta_list, result="difference", threshold=100):
     """
     Removes shots from all relevant data grid entry lists if the value for that shot exceeds the threshold.
     Works for both 'difference' and 'ratio' result types.
     """
+    data_grid = copy.deepcopy(data_grid) # Avoid modifying the original data_grid
+
     for i in range(len(delta_list)):
         for j in range(len(T_list)):
             entry = data_grid[i, j]
@@ -559,6 +534,8 @@ def count_remaining_shots(data_grid, T_list, delta_list):
 
 def get_regularized_data_grid(data_grid, T_list, delta_list, regularization = 1e-15):
     #does not change entry['result'], only entry['op_real'], entry['op_ft'], entry['loop_0']
+
+    data_grid = copy.deepcopy(data_grid) # Avoid modifying the original data_grid
 
     for i in range(len(delta_list)):
         for j in range(len(T_list)):
@@ -649,7 +626,7 @@ def get_data_grid_results(data_grid, T_list, delta_list, result="difference", bo
 
 #%% #PLOTS:
 #function to plot the 2d phase diagram!
-def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = None, result = "difference", bool_log = False, regularization = None, threshold = None, vmax = None, vmin = None, save = False, save_dir = None, filename = None):
+def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = None, result = "difference", bool_log = False, regularization = None, threshold = None, vmax = None, vmin = None, save = False, save_dir_image = None, filename = None):
 
     if figsize == None:
         figsize = (len(T_list), len(delta_list))
@@ -686,34 +663,42 @@ def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = Non
     plt.tight_layout()
 
     if save:
-        if save_dir is None:
-            save_dir = "figures_phasediagram"
-        os.makedirs(save_dir, exist_ok=True)
+        if save_dir_image is None:
+            save_dir_image = "figures_phasediagram"
+        os.makedirs(save_dir_image, exist_ok=True)
         if filename is None:
             filename = f"phase_diagram_{result}.png"   
-        plt.savefig(os.path.join(save_dir, filename))
+        plt.savefig(os.path.join(save_dir_image, filename))
     
     plt.show()
 
-def plot_phase_diagram(T_list, delta_list, save_dir, general_dir = "phasediagram", figsize = None, result = "difference", bool_log = False, 
+def plot_phase_diagram(T_list, delta_list, save_dir = 'data', general_dir = "phasediagram", figsize = None, result = "difference", bool_log = False, 
                        regularization = None, threshold = None, vmin = None, vmax = None, save = False, save_dir_image = None, filename = None):
     data_grid = load_saved_results(T_list, delta_list, save_dir, general_dir = general_dir)
-    if filename is None:
-        filename = save_dir + f"_{result}"
-        if bool_log:
-            filename = filename + "_log"
-        if vmin is not None and vmax is not None:
-            filename = filename + f"_vmin{vmin}_vmax{vmax}"
-        if threshold is not None:
-            filename = filename + f"_thresh{threshold}"
-        if regularization is not None:
-            filename = filename + f"_reg{regularization}"
-        filename = filename + ".svg"
+
+    if save:
+        if filename is None:
+            filename = f"result_{result}"
+            if bool_log:
+                filename = filename + "_log"
+            if vmin is not None and vmax is not None:
+                filename = filename + f"_vmin{vmin}_vmax{vmax}"
+            if threshold is not None:
+                filename = filename + f"_thresh{threshold}"
+            if regularization is not None:
+                filename = filename + f"_reg{regularization}"
+            filename = filename + ".svg"
+    
+        if save_dir_image is None:
+            save_dir_image = "figures/phasediagram"
+            save_dir_image = os.path.join(general_dir, save_dir_image)
+            os.makedirs(save_dir_image, exist_ok=True)
 
     plot_phase_diagram_fromdatagrid(data_grid[:len(delta_list), :len(T_list)], T_list, delta_list, figsize = figsize, result = result, bool_log = bool_log,
                                     regularization = regularization, threshold = threshold, vmin = vmin, vmax = vmax,
-                                    save = save, save_dir = save_dir_image, filename = filename)
+                                    save = save, save_dir_image = save_dir_image, filename = filename)
 
+#incomplete (illustrative) version of plot_single_entry_fromdatagrid!
 def plot_single_entry_fromdatagrid_2(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name="op_real",
                                     figsize=(12, 5), shot_idx=None, threshold=None):
     
@@ -828,7 +813,8 @@ def plot_single_entry_fromdatagrid_2(data_grid, delta_idx, T_idx, T_list, delta_
 
 def plot_single_entry_fromdatagrid(
     data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name="op_real",
-    figsize=(12, 5), shot_idx=None, regularization = None, threshold=None, log_list=None, layout="row", color_list=None
+    figsize=(12, 5), shot_idx=None, regularization = None, threshold=None, log_list=None, layout="row", color_list=None,
+    save=False, save_dir_image=None, filename=None
 ): #color_list could be plt.cm.tab10.colors or similar
     """
     Plots a single entry from the data grid for given delta and T indices.
@@ -837,7 +823,8 @@ def plot_single_entry_fromdatagrid(
     layout: "row", "col", or (nrows, ncols)
     If log_bool = True for the loop_e, then we place absolute value before taking log to avoid issues with negative values.
     """
-    data_grid = copy.deepcopy(data_grid)  # Add this line to avoid modifying the original data_grid
+    #data_grid = copy.deepcopy(data_grid)  # Add this line to avoid modifying the original data_grid
+    #I don't need it because I put this line inside the get_regularized_data_grid and remove_shots_fromdatagrid functions
 
     if log_list is not None:
         if not isinstance(log_list, list) or len(log_list) != len(name):
@@ -967,23 +954,76 @@ def plot_single_entry_fromdatagrid(
         fig.suptitle(f'Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}', fontsize=16)
 
     plt.tight_layout()
+
+    # Optionally save the figure
+    if save:
+        # Expect save_dir_image to be an absolute or project-relative path prepared by the caller
+        if save_dir_image is None:
+            # Fallback to a sensible default in current working directory if not provided
+            save_dir_image = os.path.join("figures_phasediagram", "single_entries")
+        os.makedirs(save_dir_image, exist_ok=True)
+
+        # Build a default filename if not provided
+        if filename is None:
+            # Ensure name text is readable
+            name_part = name if isinstance(name, str) else "-".join(name)
+            filename = f"single_entry_delta_{delta_list[delta_idx]:.3f}_T_{T_list[T_idx]:.3f}_{name_part}.png"
+
+        plt.savefig(os.path.join(save_dir_image, filename), bbox_inches="tight")
+
     plt.show()
 
-def plot_single_entry(delta, T, T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10,
-                       name = "op_real", figsize = (12,5), shot_idx = None, regularization = None, threshold=None,
-                       log_list = None, layout="row", color_list=None):
+def plot_single_entry(
+    delta, T, T_list, delta_list, save_dir = 'data', general_dir = "phasediagram", N_cycles = 10,
+    name = "op_real", figsize = (12,5), shot_idx = None, regularization = None, threshold=None,
+    log_list = None, layout="row", color_list=None,
+    save: bool = False, save_subdir: str | None = None, filename: str | None = None
+):
+    """
+    Plot a single (delta, T) entry loaded from saved results.
+
+    If save is True, the figure is saved under a subfolder inside general_dir.
+    - save_subdir: path relative to general_dir where to save the image
+      (e.g., "figures/single_entries"). If None, a default will be used.
+    - filename: image file name. If None, a descriptive default name will be generated.
+    """
+
     data_grid = load_saved_results(T_list, delta_list, save_dir, general_dir = general_dir)
     if delta in delta_list and T in T_list:
         delta_idx = delta_list.index(delta)
         T_idx = T_list.index(T)
-        plot_single_entry_fromdatagrid(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, shot_idx = shot_idx,
-                                        regularization = regularization, threshold=threshold, log_list=log_list, layout=layout, color_list=color_list)
+
+        # Prepare save directory inside general_dir if requested
+        save_dir_image = None
+        if save:
+            if save_subdir is None:
+                # Default subfolder inside general_dir
+                save_subdir = os.path.join("figures", "single_entries")
+            save_dir_image = os.path.join(general_dir, save_subdir)
+            os.makedirs(save_dir_image, exist_ok=True)
+
+            # Build default filename if not provided
+            if filename is None:
+                name_part = name if isinstance(name, str) else "-".join(name)
+                filename = f"single_entry_delta_{delta:.3f}_T_{T:.3f}_{name_part}.svg"
+
+        plot_single_entry_fromdatagrid(
+            data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles,
+            name = name, figsize = figsize, shot_idx = shot_idx,
+            regularization = regularization, threshold=threshold,
+            log_list=log_list, layout=layout, color_list=color_list,
+            save=save, save_dir_image=save_dir_image, filename=filename
+        )
     else:
         print("Provided delta or T not in the respective list.")
         return 
     
 #plot all T for a fixed delta
-def plot_all_T_fixed_delta_fromdatagrid(data_grid, delta_idx, T_list, delta_list, N_cycles, name = "op_real", figsize = (12,5), regularization = None, threshold=None, log_list = None, layout="row", color_list=None):
+def plot_all_T_fixed_delta_fromdatagrid(
+    data_grid, delta_idx, T_list, delta_list, N_cycles, name = "op_real", figsize = (12,5),
+    regularization = None, threshold=None, log_list = None, layout="row", color_list=None,
+    save: bool = False, save_dir_image: str | None = None, filename_prefix: str | None = None
+):
     data_grid = copy.deepcopy(data_grid)  # Add this line to avoid modifying the original data_grid
 
     if regularization is not None:
@@ -993,19 +1033,48 @@ def plot_all_T_fixed_delta_fromdatagrid(data_grid, delta_idx, T_list, delta_list
         data_grid = remove_shots_fromdatagrid(data_grid, T_list, delta_list, threshold=threshold)
 
     for T_idx in range(len(T_list)):
-        plot_single_entry_fromdatagrid(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, log_list=log_list, layout=layout, color_list=color_list)
+        # Build per-plot filename when saving
+        fn = None
+        if save:
+            name_part = name if isinstance(name, str) else "-".join(name)
+            prefix = filename_prefix or f"delta_{delta_list[delta_idx]:.3f}"
+            fn = f"{prefix}_T_{T_list[T_idx]:.3f}_{name_part}.svg"
 
-def plot_all_T_fixed_delta(delta, T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10, name = "op_real", figsize = (12,5), regularization = None, threshold=None, log_list = None, layout="row", color_list=None):
+        plot_single_entry_fromdatagrid(
+            data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles,
+            name = name, figsize = figsize, log_list=log_list, layout=layout, color_list=color_list,
+            save=save, save_dir_image=save_dir_image, filename=fn
+        )
+
+def plot_all_T_fixed_delta(
+    delta, T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10,
+    name = "op_real", figsize = (12,5), regularization = None, threshold=None, log_list = None, layout="row", color_list=None,
+    save: bool = False, save_subdir: str | None = None, filename_prefix: str | None = None
+):
     data_grid = load_saved_results(T_list, delta_list, save_dir, general_dir = general_dir)
     if delta in delta_list:
         delta_idx = delta_list.index(delta)
-        plot_all_T_fixed_delta_fromdatagrid(data_grid, delta_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, 
-                                            log_list=log_list, layout=layout, color_list=color_list)
+        save_dir_image = None
+        if save:
+            if save_subdir is None:
+                save_subdir = os.path.join("figures", "single_entries")
+            save_dir_image = os.path.join(general_dir, save_subdir)
+            os.makedirs(save_dir_image, exist_ok=True)
+
+        plot_all_T_fixed_delta_fromdatagrid(
+            data_grid, delta_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize,
+            log_list=log_list, layout=layout, color_list=color_list,
+            save=save, save_dir_image=save_dir_image, filename_prefix=filename_prefix
+        )
     else:
         print("Provided delta not in the respective list.")
         return
 
-def plot_all_delta_fixed_T_fromdatagrid(data_grid, T_idx, T_list, delta_list, N_cycles, name = "op_real", figsize = (12,5), regularization = None, threshold=None, log_list = None, layout="row", color_list=None):
+def plot_all_delta_fixed_T_fromdatagrid(
+    data_grid, T_idx, T_list, delta_list, N_cycles, name = "op_real", figsize = (12,5),
+    regularization = None, threshold=None, log_list = None, layout="row", color_list=None,
+    save: bool = False, save_dir_image: str | None = None, filename_prefix: str | None = None
+):
     data_grid = copy.deepcopy(data_grid)  # Add this line to avoid modifying the original data_grid
     if regularization is not None:
         data_grid = get_regularized_data_grid(data_grid, T_list, delta_list, regularization=regularization)
@@ -1014,21 +1083,46 @@ def plot_all_delta_fixed_T_fromdatagrid(data_grid, T_idx, T_list, delta_list, N_
         data_grid = remove_shots_fromdatagrid(data_grid, T_list, delta_list, threshold=threshold)
 
     for delta_idx in range(len(delta_list)):
-        plot_single_entry_fromdatagrid(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, log_list=log_list, layout=layout, color_list=color_list)
+        fn = None
+        if save:
+            name_part = name if isinstance(name, str) else "-".join(name)
+            prefix = filename_prefix or f"T_{T_list[T_idx]:.3f}"
+            fn = f"{prefix}_delta_{delta_list[delta_idx]:.3f}_{name_part}.svg"
+        plot_single_entry_fromdatagrid(
+            data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles,
+            name = name, figsize = figsize, log_list=log_list, layout=layout, color_list=color_list,
+            save=save, save_dir_image=save_dir_image, filename=fn
+        )
 
-def plot_all_delta_fixed_T(T, T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10, name = "op_real", figsize = (12,5), 
-                           regularization = None, threshold=None, log_list = None, layout="row", color_list=None):
+def plot_all_delta_fixed_T(
+    T, T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10, name = "op_real", figsize = (12,5), 
+    regularization = None, threshold=None, log_list = None, layout="row", color_list=None,
+    save: bool = False, save_subdir: str | None = None, filename_prefix: str | None = None
+):
     data_grid = load_saved_results(T_list, delta_list, save_dir, general_dir = general_dir)
     if T in T_list:
         T_idx = T_list.index(T)
-        plot_all_delta_fixed_T_fromdatagrid(data_grid, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, 
-                                            regularization = regularization, threshold=threshold, log_list=log_list, layout=layout, color_list=color_list)
+        save_dir_image = None
+        if save:
+            if save_subdir is None:
+                save_subdir = os.path.join("figures", "phasediagram", "single_entries")
+            save_dir_image = os.path.join(general_dir, save_subdir)
+            os.makedirs(save_dir_image, exist_ok=True)
+
+        plot_all_delta_fixed_T_fromdatagrid(
+            data_grid, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, 
+            regularization = regularization, threshold=threshold, log_list=log_list, layout=layout, color_list=color_list,
+            save=save, save_dir_image=save_dir_image, filename_prefix=filename_prefix
+        )
     else:
         print("Provided T not in the respective list.")
         return
 
-def plot_all_entries_fromdatagrid(data_grid, T_list, delta_list, N_cycles = 10, name = "op_real", figsize = (12,5), 
-                                  regularization = None, threshold=None, log_list = None, layout="row", color_list=None):
+def plot_all_entries_fromdatagrid(
+    data_grid, T_list, delta_list, N_cycles = 10, name = "op_real", figsize = (12,5), 
+    regularization = None, threshold=None, log_list = None, layout="row", color_list=None,
+    save: bool = False, save_dir_image: str | None = None, filename_prefix: str | None = None
+):
     data_grid = copy.deepcopy(data_grid)  # Add this line to avoid modifying the original data_grid
 
     if regularization is not None:
@@ -1039,14 +1133,35 @@ def plot_all_entries_fromdatagrid(data_grid, T_list, delta_list, N_cycles = 10, 
 
     for delta_idx in range(len(delta_list)):
         for T_idx in range(len(T_list)):
-            plot_single_entry_fromdatagrid(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, 
-                                           log_list=log_list, layout=layout, color_list=color_list)
+            fn = None
+            if save:
+                name_part = name if isinstance(name, str) else "-".join(name)
+                prefix = filename_prefix or "all_entries"
+                fn = f"{prefix}_delta_{delta_list[delta_idx]:.3f}_T_{T_list[T_idx]:.3f}_{name_part}.svg"
+            plot_single_entry_fromdatagrid(
+                data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, 
+                log_list=log_list, layout=layout, color_list=color_list,
+                save=save, save_dir_image=save_dir_image, filename=fn
+            )
 
-def plot_all_entries(T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10, name = "op_real", figsize = (12,5), 
-                     regularization = None, threshold=None, log_list = None, layout="row", color_list=None):
+def plot_all_entries(
+    T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10, name = "op_real", figsize = (12,5), 
+    regularization = None, threshold=None, log_list = None, layout="row", color_list=None,
+    save: bool = False, save_subdir: str | None = None, filename_prefix: str | None = None
+):
     data_grid = load_saved_results(T_list, delta_list, save_dir, general_dir = general_dir)
-    plot_all_entries_fromdatagrid(data_grid, T_list, delta_list, N_cycles, name = name, figsize = figsize, 
-                                  regularization = regularization, threshold=threshold, log_list=log_list, layout=layout, color_list=color_list)
+    save_dir_image = None
+    if save:
+        if save_subdir is None:
+            save_subdir = os.path.join("figures", "phasediagram", "single_entries")
+        save_dir_image = os.path.join(general_dir, save_subdir)
+        os.makedirs(save_dir_image, exist_ok=True)
+
+    plot_all_entries_fromdatagrid(
+        data_grid, T_list, delta_list, N_cycles, name = name, figsize = figsize, 
+        regularization = regularization, threshold=threshold, log_list=log_list, layout=layout, color_list=color_list,
+        save=save, save_dir_image=save_dir_image, filename_prefix=filename_prefix
+    )
 
 
 #%% functions to save or load arrays!
@@ -1065,7 +1180,7 @@ def load(name, doit = True):
     
 
 
-def load_saved_results(T_list, delta_list, save_dir, general_dir = "phasediagram"):
+def load_saved_results(T_list, delta_list, save_dir = 'data', general_dir = "phasediagram"):
     data_grid = np.empty((len(delta_list), len(T_list)), dtype=object)
     delta_idx = {d: i for i, d in enumerate(delta_list)}
     T_idx = {t: j for j, t in enumerate(T_list)}

@@ -11,7 +11,7 @@ def data_to_excel(T_list, delta_list, save_dir, general_dir = "phasediagram", fi
     grid = PD.get_data_grid_results(data_grid, T_list, delta_list, result = result)
     grid_threshold, grid_threshold_shot_counts = PD.get_data_grid_results(copy.deepcopy(data_grid), T_list, delta_list, result = result, threshold = threshold, count_shots=True)
     grid_regularized = PD.get_data_grid_results(copy.deepcopy(data_grid), T_list, delta_list, result = result, regularization = regularization)
-    grid_regularized_threshold, grid_regularized_threshold_shot_counts = PD.get_data_grid_results(copy.deepcopy(data_grid), T_list, delta_list, result = result, threshold = threshold, regularization = regularization, count_shots=True)
+    grid_regularized_threshold = PD.get_data_grid_results(copy.deepcopy(data_grid), T_list, delta_list, result = result, threshold = threshold, regularization = regularization, count_shots=True)
 
     # grid is a 2D numpy array (shape: len(delta_list) x len(T_list))
     df = pd.DataFrame(grid, index=delta_list, columns=T_list)
