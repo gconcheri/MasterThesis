@@ -14,24 +14,27 @@ def data_to_excel(T_list, delta_list, save_dir, general_dir = "phasediagram", fi
     grid_regularized_threshold = PD.get_data_grid_results(copy.deepcopy(data_grid), T_list, delta_list, result = result, threshold = threshold, regularization = regularization, count_shots=True)
 
     # grid is a 2D numpy array (shape: len(delta_list) x len(T_list))
-    df = pd.DataFrame(grid, index=delta_list, columns=T_list)
-    df_thre = pd.DataFrame(grid_threshold, index=delta_list, columns=T_list)
-    df_reg = pd.DataFrame(grid_regularized, index=delta_list, columns=T_list)
-    df_reg_thre = pd.DataFrame(grid_regularized_threshold, index=delta_list, columns=T_list)
+    d = pd.DataFrame(grid, index=delta_list, columns=T_list)
+    d_thre = pd.DataFrame(grid_threshold, index=delta_list, columns=T_list)
+    d_thre_shot = pd.DataFrame(grid_threshold_shot_counts, index=delta_list, columns=T_list)
+    d_reg = pd.DataFrame(grid_regularized, index=delta_list, columns=T_list)
+    d_reg_thre = pd.DataFrame(grid_regularized_threshold, index=delta_list, columns=T_list)
 
     # Optionally, rename the index and columns for clarity
-    df.index.name = 'delta'
-    df.columns.name = 'T'
-    df_thre.index.name = 'delta'
-    df_thre.columns.name = 'T'
-    df_reg.index.name = 'delta'
-    df_reg.columns.name = 'T'
-    df_reg_thre.index.name = 'delta'
-    df_reg_thre.columns.name = 'T'
+    d.index.name = 'delta'
+    d.columns.name = 'T'
+    d_thre.index.name = 'delta'
+    d_thre.columns.name = 'T'
+    d_thre_shot.index.name = 'delta'
+    d_thre_shot.columns.name = 'T'
+    d_reg.index.name = 'delta'
+    d_reg.columns.name = 'T'
+    d_reg_thre.index.name = 'delta'
+    d_reg_thre.columns.name = 'T'
 
     if filename is None:
         filename = f"{general_dir}/{save_dir}/"
-        filename = f"table"
+        filename += f"table"
         filename += ".xlsx"
 
     # Export to Excel
@@ -74,6 +77,8 @@ def data_to_excel(
       - Base grid
       - Threshold grid (if threshold provided)
       - Remaining-shots grid (just below threshold grid)
+      - Regularized grid (if regularization provided)
+      - Regularized + threshold grid (if both provided)
     """
 
     # Normalize results argument
@@ -92,12 +97,17 @@ def data_to_excel(
     data_grid = PD.load_saved_results(T_list, delta_list, save_dir=save_dir, general_dir=general_dir)
 
     # Build output path
-    out_dir = os.path.join(general_dir, save_dir)
+    out_dir = os.path.join(general_dir, save_dir, "excels")
     os.makedirs(out_dir, exist_ok=True)
 
     if filename is None:
         suffix = "-".join(results_list)
-        filename = f"phase_diagram_tables_{suffix}.xlsx"
+        filename = f"phase_diagram_tables_{suffix}" 
+        if threshold is not None:
+            filename += f"_thr{threshold}"
+        if regularization is not None:
+            filename += f"_reg{regularization}"
+        filename += ".xlsx"
     out_path = os.path.join(out_dir, filename)
 
     with pd.ExcelWriter(out_path) as writer:
@@ -117,15 +127,7 @@ def data_to_excel(
 
             # Threshold + shot grids if threshold is provided
             if threshold is not None:
-                thr_grid, shot_counts = PD.get_data_grid_results(
-                    copy.deepcopy(data_grid),
-                    T_list,
-                    delta_list,
-                    result=res,
-                    threshold=threshold,
-                    regularization=regularization,
-                    count_shots=True
-                )
+                thr_grid, shot_counts = PD.get_data_grid_results(copy.deepcopy(data_grid), T_list, delta_list, result=res, threshold=threshold, regularization=regularization, count_shots=True)
                 df_thr = pd.DataFrame(thr_grid, index=delta_list, columns=T_list)
                 df_thr.index.name = "delta"
                 df_thr.columns.name = "T"

@@ -626,7 +626,8 @@ def get_data_grid_results(data_grid, T_list, delta_list, result="difference", bo
 
 #%% #PLOTS:
 #function to plot the 2d phase diagram!
-def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = None, result = "difference", bool_log = False, regularization = None, threshold = None, vmax = None, vmin = None, save = False, save_dir_image = None, filename = None):
+def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = None, result = "difference", bool_log = False, regularization = None, 
+                                    threshold = None, vmax = None, vmin = None, save = False, save_dir_image = None, filename = None):
 
     if figsize == None:
         figsize = (len(T_list), len(delta_list))
@@ -672,8 +673,8 @@ def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = Non
     
     plt.show()
 
-def plot_phase_diagram(T_list, delta_list, save_dir = 'data', general_dir = "phasediagram", figsize = None, result = "difference", bool_log = False, 
-                       regularization = None, threshold = None, vmin = None, vmax = None, save = False, save_dir_image = None, filename = None):
+def plot_phase_diagram(T_list, delta_list, save_dir = None, general_dir = "phasediagram", figsize = None, result = "difference", bool_log = False, 
+                       regularization = None, threshold = None, vmin = None, vmax = None, save = False, save_dir_image = None, filename = None, suffix = ".svg"):
     data_grid = load_saved_results(T_list, delta_list, save_dir, general_dir = general_dir)
 
     if save:
@@ -687,11 +688,11 @@ def plot_phase_diagram(T_list, delta_list, save_dir = 'data', general_dir = "pha
                 filename = filename + f"_thresh{threshold}"
             if regularization is not None:
                 filename = filename + f"_reg{regularization}"
-            filename = filename + ".svg"
+            filename = filename + suffix
     
         if save_dir_image is None:
             save_dir_image = "figures/phasediagram"
-            save_dir_image = os.path.join(general_dir, save_dir_image)
+            save_dir_image = os.path.join(general_dir, save_dir, save_dir_image)
             os.makedirs(save_dir_image, exist_ok=True)
 
     plot_phase_diagram_fromdatagrid(data_grid[:len(delta_list), :len(T_list)], T_list, delta_list, figsize = figsize, result = result, bool_log = bool_log,
@@ -856,7 +857,7 @@ def plot_single_entry_fromdatagrid(
                 if log_bool:
                     axx.set_ylabel("Log " + ylabel)
                     axx.set_yscale("log")
-                axx.set_title(title + f' (Shot {shot_idx+1})')
+                axx.set_title(title + f' (Shot {shot_idx})')
             else:
                 print(f"shot_idx {shot_idx} out of range (max {len(data)-1})")
                 return
@@ -967,17 +968,18 @@ def plot_single_entry_fromdatagrid(
         if filename is None:
             # Ensure name text is readable
             name_part = name if isinstance(name, str) else "-".join(name)
-            filename = f"single_entry_delta_{delta_list[delta_idx]:.3f}_T_{T_list[T_idx]:.3f}_{name_part}.png"
+            filename = f"single_entry_delta_{delta_list[delta_idx]:.3f}_T_{T_list[T_idx]:.3f}_{name_part}.svg"
 
         plt.savefig(os.path.join(save_dir_image, filename), bbox_inches="tight")
+        # bbox_inches='tight' is useful to make your saved figures look cleaner by removing extra whitespace.
 
     plt.show()
 
 def plot_single_entry(
-    delta, T, T_list, delta_list, save_dir = 'data', general_dir = "phasediagram", N_cycles = 10,
+    delta, T, T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10,
     name = "op_real", figsize = (12,5), shot_idx = None, regularization = None, threshold=None,
     log_list = None, layout="row", color_list=None,
-    save: bool = False, save_subdir: str | None = None, filename: str | None = None
+    save: bool = False, save_subdir: str | None = None, filename: str | None = None, suffix: str = ".svg"
 ):
     """
     Plot a single (delta, T) entry loaded from saved results.
@@ -998,14 +1000,26 @@ def plot_single_entry(
         if save:
             if save_subdir is None:
                 # Default subfolder inside general_dir
-                save_subdir = os.path.join("figures", "single_entries")
-            save_dir_image = os.path.join(general_dir, save_subdir)
+                save_subdir = "single_entries"
+                # if log_list is not None and any(log_list):
+                #     save_subdir = save_subdir + "_log"
+                # if threshold is not None:
+                #     save_subdir = save_subdir + f"_thresh{threshold}"
+                # if regularization is not None:
+                #     save_subdir = save_subdir + f"_reg{regularization}"
+                # if shot_idx is not None:
+                #     save_subdir = save_subdir + f"_shot{shot_idx}"
+                save_subdir = save_subdir + create_suffix(log = log_list, thresh = threshold, reg = regularization, shot = shot_idx)
+                save_subdir = os.path.join("figures", save_subdir)
+
+            save_dir_image = os.path.join(general_dir, save_dir, save_subdir)
             os.makedirs(save_dir_image, exist_ok=True)
 
             # Build default filename if not provided
             if filename is None:
                 name_part = name if isinstance(name, str) else "-".join(name)
-                filename = f"single_entry_delta_{delta:.3f}_T_{T:.3f}_{name_part}.svg"
+                filename = f"delta_{delta:.3f}_T_{T:.3f}_{name_part}"
+                filename = filename + suffix
 
         plot_single_entry_fromdatagrid(
             data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles,
@@ -1022,9 +1036,9 @@ def plot_single_entry(
 def plot_all_T_fixed_delta_fromdatagrid(
     data_grid, delta_idx, T_list, delta_list, N_cycles, name = "op_real", figsize = (12,5),
     regularization = None, threshold=None, log_list = None, layout="row", color_list=None,
-    save: bool = False, save_dir_image: str | None = None, filename_prefix: str | None = None
+    save: bool = False, save_dir_image: str | None = None, filename_prefix: str | None = None, suffix: str = ".svg"
 ):
-    data_grid = copy.deepcopy(data_grid)  # Add this line to avoid modifying the original data_grid
+    #data_grid = copy.deepcopy(data_grid)  # Add this line to avoid modifying the original data_grid
 
     if regularization is not None:
         data_grid = get_regularized_data_grid(data_grid, T_list, delta_list, regularization=regularization)
@@ -1038,7 +1052,7 @@ def plot_all_T_fixed_delta_fromdatagrid(
         if save:
             name_part = name if isinstance(name, str) else "-".join(name)
             prefix = filename_prefix or f"delta_{delta_list[delta_idx]:.3f}"
-            fn = f"{prefix}_T_{T_list[T_idx]:.3f}_{name_part}.svg"
+            fn = f"{prefix}_T_{T_list[T_idx]:.3f}_{name_part}" + suffix
 
         plot_single_entry_fromdatagrid(
             data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles,
@@ -1049,7 +1063,7 @@ def plot_all_T_fixed_delta_fromdatagrid(
 def plot_all_T_fixed_delta(
     delta, T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10,
     name = "op_real", figsize = (12,5), regularization = None, threshold=None, log_list = None, layout="row", color_list=None,
-    save: bool = False, save_subdir: str | None = None, filename_prefix: str | None = None
+    save: bool = False, save_subdir: str | None = None, filename_prefix: str | None = None, suffix: str = ".svg"
 ):
     data_grid = load_saved_results(T_list, delta_list, save_dir, general_dir = general_dir)
     if delta in delta_list:
@@ -1057,14 +1071,16 @@ def plot_all_T_fixed_delta(
         save_dir_image = None
         if save:
             if save_subdir is None:
-                save_subdir = os.path.join("figures", "single_entries")
-            save_dir_image = os.path.join(general_dir, save_subdir)
+                save_subdir = "single_entries"
+                save_subdir = save_subdir + create_suffix(log = log_list, thresh = threshold, reg = regularization)
+                save_subdir = os.path.join("figures", save_subdir)
+            save_dir_image = os.path.join(general_dir, save_dir, save_subdir)
             os.makedirs(save_dir_image, exist_ok=True)
 
         plot_all_T_fixed_delta_fromdatagrid(
             data_grid, delta_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize,
             log_list=log_list, layout=layout, color_list=color_list,
-            save=save, save_dir_image=save_dir_image, filename_prefix=filename_prefix
+            save=save, save_dir_image=save_dir_image, filename_prefix=filename_prefix, suffix=suffix
         )
     else:
         print("Provided delta not in the respective list.")
@@ -1073,7 +1089,7 @@ def plot_all_T_fixed_delta(
 def plot_all_delta_fixed_T_fromdatagrid(
     data_grid, T_idx, T_list, delta_list, N_cycles, name = "op_real", figsize = (12,5),
     regularization = None, threshold=None, log_list = None, layout="row", color_list=None,
-    save: bool = False, save_dir_image: str | None = None, filename_prefix: str | None = None
+    save: bool = False, save_dir_image: str | None = None, filename_prefix: str | None = None, suffix: str = ".svg"
 ):
     data_grid = copy.deepcopy(data_grid)  # Add this line to avoid modifying the original data_grid
     if regularization is not None:
@@ -1087,7 +1103,7 @@ def plot_all_delta_fixed_T_fromdatagrid(
         if save:
             name_part = name if isinstance(name, str) else "-".join(name)
             prefix = filename_prefix or f"T_{T_list[T_idx]:.3f}"
-            fn = f"{prefix}_delta_{delta_list[delta_idx]:.3f}_{name_part}.svg"
+            fn = f"{prefix}_delta_{delta_list[delta_idx]:.3f}_{name_part}" + suffix
         plot_single_entry_fromdatagrid(
             data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles,
             name = name, figsize = figsize, log_list=log_list, layout=layout, color_list=color_list,
@@ -1097,7 +1113,7 @@ def plot_all_delta_fixed_T_fromdatagrid(
 def plot_all_delta_fixed_T(
     T, T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10, name = "op_real", figsize = (12,5), 
     regularization = None, threshold=None, log_list = None, layout="row", color_list=None,
-    save: bool = False, save_subdir: str | None = None, filename_prefix: str | None = None
+    save: bool = False, save_subdir: str | None = None, filename_prefix: str | None = None, suffix: str = ".svg"
 ):
     data_grid = load_saved_results(T_list, delta_list, save_dir, general_dir = general_dir)
     if T in T_list:
@@ -1105,14 +1121,17 @@ def plot_all_delta_fixed_T(
         save_dir_image = None
         if save:
             if save_subdir is None:
-                save_subdir = os.path.join("figures", "phasediagram", "single_entries")
-            save_dir_image = os.path.join(general_dir, save_subdir)
+                save_subdir = "single_entries"
+                save_subdir = save_subdir + create_suffix(log = log_list, thresh = threshold, reg = regularization)
+                save_subdir = os.path.join("figures", save_subdir)
+
+            save_dir_image = os.path.join(general_dir, save_dir, save_subdir)
             os.makedirs(save_dir_image, exist_ok=True)
 
         plot_all_delta_fixed_T_fromdatagrid(
             data_grid, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, 
             regularization = regularization, threshold=threshold, log_list=log_list, layout=layout, color_list=color_list,
-            save=save, save_dir_image=save_dir_image, filename_prefix=filename_prefix
+            save=save, save_dir_image=save_dir_image, filename_prefix=filename_prefix, suffix=suffix
         )
     else:
         print("Provided T not in the respective list.")
@@ -1121,7 +1140,7 @@ def plot_all_delta_fixed_T(
 def plot_all_entries_fromdatagrid(
     data_grid, T_list, delta_list, N_cycles = 10, name = "op_real", figsize = (12,5), 
     regularization = None, threshold=None, log_list = None, layout="row", color_list=None,
-    save: bool = False, save_dir_image: str | None = None, filename_prefix: str | None = None
+    save: bool = False, save_dir_image: str | None = None, filename_prefix: str | None = None, suffix: str = ".svg"
 ):
     data_grid = copy.deepcopy(data_grid)  # Add this line to avoid modifying the original data_grid
 
@@ -1137,7 +1156,7 @@ def plot_all_entries_fromdatagrid(
             if save:
                 name_part = name if isinstance(name, str) else "-".join(name)
                 prefix = filename_prefix or "all_entries"
-                fn = f"{prefix}_delta_{delta_list[delta_idx]:.3f}_T_{T_list[T_idx]:.3f}_{name_part}.svg"
+                fn = f"{prefix}_delta_{delta_list[delta_idx]:.3f}_T_{T_list[T_idx]:.3f}_{name_part}" + suffix
             plot_single_entry_fromdatagrid(
                 data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name = name, figsize = figsize, 
                 log_list=log_list, layout=layout, color_list=color_list,
@@ -1147,22 +1166,40 @@ def plot_all_entries_fromdatagrid(
 def plot_all_entries(
     T_list, delta_list, save_dir, general_dir = "phasediagram", N_cycles = 10, name = "op_real", figsize = (12,5), 
     regularization = None, threshold=None, log_list = None, layout="row", color_list=None,
-    save: bool = False, save_subdir: str | None = None, filename_prefix: str | None = None
+    save: bool = False, save_subdir: str | None = None, filename_prefix: str | None = None, suffix: str = ".svg"
 ):
     data_grid = load_saved_results(T_list, delta_list, save_dir, general_dir = general_dir)
     save_dir_image = None
     if save:
         if save_subdir is None:
-            save_subdir = os.path.join("figures", "phasediagram", "single_entries")
-        save_dir_image = os.path.join(general_dir, save_subdir)
+            save_subdir = os.path.join("figures", "single_entries")
+        save_dir_image = os.path.join(general_dir, save_dir, save_subdir)
         os.makedirs(save_dir_image, exist_ok=True)
 
     plot_all_entries_fromdatagrid(
         data_grid, T_list, delta_list, N_cycles, name = name, figsize = figsize, 
         regularization = regularization, threshold=threshold, log_list=log_list, layout=layout, color_list=color_list,
-        save=save, save_dir_image=save_dir_image, filename_prefix=filename_prefix
+        save=save, save_dir_image=save_dir_image, filename_prefix=filename_prefix, suffix=suffix
     )
 
+def create_suffix(**kwargs):
+    """
+    Build a suffix string for folder or filename based on provided keyword arguments.
+    - If a value is a list and contains True, adds just the key (e.g., 'log').
+    - If a value is not None and not False, adds key+value (e.g., 'thresh2').
+    - Skips None and False values.
+    """
+    parts = []
+    for key, value in kwargs.items():
+        if value is None or value is False:
+            continue
+        if isinstance(value, list):
+            # Special case for lists of bools (like log_list)
+            if any(value):
+                parts.append(str(key))
+        else:
+            parts.append(f"{key}{value}")
+    return ("_" + "_".join(parts)) if parts else ""
 
 #%% functions to save or load arrays!
 
@@ -1180,7 +1217,7 @@ def load(name, doit = True):
     
 
 
-def load_saved_results(T_list, delta_list, save_dir = 'data', general_dir = "phasediagram"):
+def load_saved_results(T_list, delta_list, save_dir = None, general_dir = "phasediagram", data_dir = "data"):
     data_grid = np.empty((len(delta_list), len(T_list)), dtype=object)
     delta_idx = {d: i for i, d in enumerate(delta_list)}
     T_idx = {t: j for j, t in enumerate(T_list)}
@@ -1189,7 +1226,7 @@ def load_saved_results(T_list, delta_list, save_dir = 'data', general_dir = "pha
         for T in T_list:
             fname = f"delta_{delta:.5f}_T_{T:.5f}.pkl"
 
-            full_dir = os.path.join(general_dir, save_dir)
+            full_dir = os.path.join(general_dir, save_dir, data_dir)
 
             if os.path.exists(full_dir):
                 fpath = os.path.join(full_dir, fname)

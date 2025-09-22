@@ -32,12 +32,6 @@ Here I test whether the Floquet operator defined as R=e^4h works correctly!
 
 TO DO:
 
-ora general_dir e save_dir hanno significati diversi nelle funzioni di plot e nelle funzioni di simulazione del phase diagram (phase_diagram_slow e phase_diagram_fast)
-i.e. nelle funz di simulazione general_dir = "phasediagram" save_dir = "nome lungo del phase diagram"
-nelle funz di plot general_dir = "phasediagram/../.." save_dir = "data" 
-
-sistema funzioni plot entries!
-
 finish excel file: cancella caso dei shots con regularization, perchè i shots vengono rimossi solo con threshold
 
 maybe even actually add all the files in respective folders and then add paths to all files such that I can use files even if they are in different folder: maybe there is a easier way! i.e. check project_activate
