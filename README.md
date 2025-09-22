@@ -32,6 +32,8 @@ Here I test whether the Floquet operator defined as R=e^4h works correctly!
 
 TO DO:
 
-finish excel file: cancella caso dei shots con regularization, perchè i shots vengono rimossi solo con threshold
-
 maybe even actually add all the files in respective folders and then add paths to all files such that I can use files even if they are in different folder: maybe there is a easier way! i.e. check project_activate
+
+aggiungi funzioni di plot nella simulazione cluster, in modo che vengano direttamente salvati alcuni plot nella directory
+
+sistema cluster folder su workstation! allinealo con quello che hai nel pc

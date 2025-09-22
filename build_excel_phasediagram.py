@@ -3,63 +3,6 @@ import copy
 import PhaseDiagram as PD
 import pandas as pd
 
-def data_to_excel(T_list, delta_list, save_dir, general_dir = "phasediagram", filename = None, result = "difference",
-                  threshold = None, regularization = None):
-
-    data_grid = PD.load_saved_results(T_list, delta_list, save_dir = "pd_1_size31_noedge", general_dir = "phasediagram")
-
-    grid = PD.get_data_grid_results(data_grid, T_list, delta_list, result = result)
-    grid_threshold, grid_threshold_shot_counts = PD.get_data_grid_results(copy.deepcopy(data_grid), T_list, delta_list, result = result, threshold = threshold, count_shots=True)
-    grid_regularized = PD.get_data_grid_results(copy.deepcopy(data_grid), T_list, delta_list, result = result, regularization = regularization)
-    grid_regularized_threshold = PD.get_data_grid_results(copy.deepcopy(data_grid), T_list, delta_list, result = result, threshold = threshold, regularization = regularization, count_shots=True)
-
-    # grid is a 2D numpy array (shape: len(delta_list) x len(T_list))
-    d = pd.DataFrame(grid, index=delta_list, columns=T_list)
-    d_thre = pd.DataFrame(grid_threshold, index=delta_list, columns=T_list)
-    d_thre_shot = pd.DataFrame(grid_threshold_shot_counts, index=delta_list, columns=T_list)
-    d_reg = pd.DataFrame(grid_regularized, index=delta_list, columns=T_list)
-    d_reg_thre = pd.DataFrame(grid_regularized_threshold, index=delta_list, columns=T_list)
-
-    # Optionally, rename the index and columns for clarity
-    d.index.name = 'delta'
-    d.columns.name = 'T'
-    d_thre.index.name = 'delta'
-    d_thre.columns.name = 'T'
-    d_thre_shot.index.name = 'delta'
-    d_thre_shot.columns.name = 'T'
-    d_reg.index.name = 'delta'
-    d_reg.columns.name = 'T'
-    d_reg_thre.index.name = 'delta'
-    d_reg_thre.columns.name = 'T'
-
-    if filename is None:
-        filename = f"{general_dir}/{save_dir}/"
-        filename += f"table"
-        filename += ".xlsx"
-
-    # Export to Excel
-    with pd.ExcelWriter("phase_diagram_tables.xlsx") as writer:
-        df.to_excel(writer, sheet_name="difference", startrow=0)
-        # Write the second table below the first (add space if you want)
-        df_thre.to_excel(writer, sheet_name="difference", startrow=len(df)+6)
-        df_reg.to_excel(writer, sheet_name="difference", startrow=2*(len(df)+6))
-        rt.to_excel(writer, sheet_name="ratio", startrow=0)
-        # Write the second table below the first (add space if you want)
-        rt_thre.to_excel(writer, sheet_name="ratio", startrow=len(rt)+6)
-        rt_reg.to_excel(writer, sheet_name="ratio", startrow=2*(len(rt)+6))
-
-    df_thre_shot_counts = pd.DataFrame(difference_grid_threshold_shot_counts, index=delta_list, columns=T_list)
-    df_thre_shot_counts.index.name = 'delta'
-    df_thre_shot_counts.columns.name = 'T'
-
-    rt_thre_shot_counts = pd.DataFrame(ratio_grid_threshold_shot_counts, index=delta_list, columns=T_list)
-    rt_thre_shot_counts.index.name = 'delta'
-    rt_thre_shot_counts.columns.name = 'T'
-
-    with pd.ExcelWriter("phase_diagram_remaining_shots.xlsx") as writer:
-        df_thre_shot_counts.to_excel(writer, sheet_name="difference", startrow=0)
-        rt_thre_shot_counts.to_excel(writer, sheet_name="ratio", startrow=0)
-
 
 def data_to_excel(
     T_list,
@@ -68,8 +11,8 @@ def data_to_excel(
     general_dir="phasediagram",
     filename=None,
     results="both",          # "difference", "ratio", or "both"
-    threshold=None,          # if None, threshold and shot grids are skipped
-    regularization=None      # passed to thresholded computation
+    threshold=None,          # list [diff_thre, ratio_thre]
+    regularization=None      # list [diff_reg, ratio_reg]
 ):
     """
     Build an Excel workbook with one sheet per result type.
@@ -93,6 +36,13 @@ def data_to_excel(
         # Iterable provided
         results_list = list(results)
 
+    if isinstance(threshold, list) == False:
+        threshold = [threshold] * 2
+    
+    if isinstance(regularization, list) == False:
+        regularization = [regularization] * 2
+
+
     # Load saved data
     data_grid = PD.load_saved_results(T_list, delta_list, save_dir=save_dir, general_dir=general_dir)
 
@@ -110,8 +60,9 @@ def data_to_excel(
         filename += ".xlsx"
     out_path = os.path.join(out_dir, filename)
 
+
     with pd.ExcelWriter(out_path) as writer:
-        for res in results_list:
+        for idx, res in enumerate(results_list):
             # Base grid (optionally regularized if you want consistency)
             base_grid = PD.get_data_grid_results(copy.deepcopy(data_grid), T_list, delta_list, result=res)
             df_base = pd.DataFrame(base_grid, index=delta_list, columns=T_list)
@@ -127,12 +78,12 @@ def data_to_excel(
 
             # Threshold + shot grids if threshold is provided
             if threshold is not None:
-                thr_grid, shot_counts = PD.get_data_grid_results(copy.deepcopy(data_grid), T_list, delta_list, result=res, threshold=threshold, regularization=regularization, count_shots=True)
+                thr_grid, shot_counts = PD.get_data_grid_results(copy.deepcopy(data_grid), T_list, delta_list, result=res, threshold=threshold[idx], count_shots=True)
                 df_thr = pd.DataFrame(thr_grid, index=delta_list, columns=T_list)
                 df_thr.index.name = "delta"
                 df_thr.columns.name = "T"
 
-                pd.DataFrame([[f"{res} - threshold (threshold={threshold}, regularization={regularization})"]]).to_excel(
+                pd.DataFrame([[f"{res} - threshold (threshold={threshold[idx]})"]]).to_excel(
                     writer, sheet_name=res, startrow=start, startcol=0, header=False, index=False
                 )
                 start += 1
@@ -150,5 +101,40 @@ def data_to_excel(
                     )
                     start += 1
                     df_shots.to_excel(writer, sheet_name=res, startrow=start)
+                    start += len(df_shots) + 3
+                
+            if regularization is not None:
+                reg_grid = PD.get_data_grid_results(copy.deepcopy(data_grid), T_list, delta_list, result = res, regularization = regularization[idx])
+                df_reg = pd.DataFrame(reg_grid, index=delta_list, columns=T_list)
+                df_reg.index.name = "delta"
+                df_reg.columns.name = "T"
+
+                pd.DataFrame([[f"{res} - regularization (regularization={regularization[idx]})"]]).to_excel(
+                    writer, sheet_name=res, startrow=start, startcol=0, header=False, index=False)
+                start += 1
+                df_reg.to_excel(writer, sheet_name=res, startrow=start)
+                start += len(df_reg) + 2
+
+            if regularization is not None and threshold is not None:
+                thr_reg_grid, shot_counts_reg = PD.get_data_grid_results(copy.deepcopy(data_grid), T_list, delta_list, result = res, threshold = threshold[idx], regularization = regularization[idx], count_shots = True)
+                df_thr_reg = pd.DataFrame(thr_reg_grid, index=delta_list, columns=T_list)
+
+                pd.DataFrame([[f"{res} - threshold (threshold={threshold[idx]}, regularization={regularization[idx]})"]]).to_excel(
+                    writer, sheet_name=res, startrow=start, startcol=0, header=False, index=False)
+                start += 1
+                df_thr_reg.to_excel(writer, sheet_name=res, startrow=start)
+                start += len(df_thr_reg) + 3
+
+                if shot_counts_reg is not None:
+                    df_shots_reg = pd.DataFrame(shot_counts_reg, index=delta_list, columns=T_list)
+                    df_shots_reg.index.name = "delta"
+                    df_shots_reg.columns.name = "T"
+
+                    # Place shot grid directly under the threshold grid
+                    pd.DataFrame([[f"{res} - remaining shots under threshold, with regularization"]]).to_excel(
+                        writer, sheet_name=res, startrow=start, startcol=0, header=False, index=False
+                    )
+                    start += 1
+                    df_shots_reg.to_excel(writer, sheet_name=res, startrow=start)
 
     return out_path
