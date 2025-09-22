@@ -24,17 +24,17 @@ config = {
 }
 
 # Choose which delta/T list set to use
-delta_list_name = 'delta_list_2'
-T_list_name = 'T_list_1'
+delta_list_name = 'delta_list_3'
+T_list_name = 'T_list_2'
 delta_list = getattr(vps, delta_list_name)
 T_list = getattr(vps, T_list_name)
 
 # Choose multiple loop list names to sweep
-loop_list_names = ['loop_0', 'loop_1', 'loop_2', 'loop_3']  # extend as needed
+loop_list_names = ['loop_1', 'loop_3', 'loop_5']  # extend as needed
 
 N_shots = 15
-system_size = 31
-N_cycles = 10
+system_size = 41
+N_cycles = 15
 loop_type = 'general'
 edge = True
 
