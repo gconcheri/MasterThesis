@@ -37,3 +37,5 @@ maybe even actually add all the files in respective folders and then add paths t
 aggiungi funzioni di plot nella simulazione cluster, in modo che vengano direttamente salvati alcuni plot nella directory
 
 sistema cluster folder su workstation! allinealo con quello che hai nel pc
+
+capisci perchè rimangono tutti gli shots dopo la regularization ma comunque regularization + shot è diverso da regularization e basta
