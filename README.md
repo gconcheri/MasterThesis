@@ -38,4 +38,4 @@ aggiungi funzioni di plot nella simulazione cluster, in modo che vengano diretta
 
 sistema cluster folder su workstation! allinealo con quello che hai nel pc
 
-capisci perchè rimangono tutti gli shots dopo la regularization ma comunque regularization + shot è diverso da regularization e basta
+prima o poi aggiungi funzione plot che metta insieme più single entry plots ma non semplicemente con un for come fai adesso, ma con un subplot di subplots!
