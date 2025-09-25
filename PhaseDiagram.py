@@ -598,7 +598,7 @@ def get_result(op_ft, result = "difference", bool_log = False):
         raise ValueError("Invalid result type. Choose 'difference' or 'ratio'.")
 
 
-def get_data_grid_results(data_grid, T_list, delta_list, result="difference", bool_log = False, regularization = None, threshold=None, count_shots = False):
+def get_data_grid_results(data_grid, T_list, delta_list, result="difference", bool_log = False, regularization = None, threshold=None, count_shots = False, flip_T_axis = False):
     #data_grid = copy.deepcopy(data_grid)  # Add this line to avoid modifying the original data_grid
 
     if regularization is not None:
@@ -618,8 +618,14 @@ def get_data_grid_results(data_grid, T_list, delta_list, result="difference", bo
             elif result == "ratio":
                 new_data_grid[i, j] = get_ratio(op_ft, bool_log = bool_log)
 
+    if flip_T_axis:
+        new_data_grid = new_data_grid[:, ::-1]
+
     if count_shots:
         data_grid_shot_counts = count_remaining_shots(data_grid, T_list, delta_list)
+        if flip_T_axis:
+            data_grid_shot_counts = data_grid_shot_counts[:,::-1]
+
         return new_data_grid, data_grid_shot_counts
     else:
         return new_data_grid
@@ -627,27 +633,45 @@ def get_data_grid_results(data_grid, T_list, delta_list, result="difference", bo
 #%% #PLOTS:
 #function to plot the 2d phase diagram!
 def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = None, result = "difference", bool_log = False, regularization = None, 
-                                    threshold = None, vmax = None, vmin = None, save = False, save_dir_image = None, filename = None):
+                                    threshold = None, vmax = None, vmin = None, save = False, save_dir_image = None, filename = None, x_digits = None, y_digits = None, flip_T_axis = False):
 
     if figsize == None:
         figsize = (len(T_list), len(delta_list))
 
-    Z = get_data_grid_results(data_grid, T_list, delta_list, result=result, bool_log = bool_log, regularization = regularization, threshold=threshold)
+    Z = get_data_grid_results(data_grid, T_list, delta_list, result=result, bool_log = bool_log, regularization = regularization, threshold=threshold, flip_T_axis=flip_T_axis)
 
-    deltaT = (T_list[1]-T_list[0])/2
+    deltaT = np.abs(T_list[1]-T_list[0])/2
     deltadelta = (delta_list[1]-delta_list[0])/2
+
+    if flip_T_axis:
+        T_start = T_list[-1]-deltaT
+        T_finish = T_list[0]+deltaT
+    else:
+        T_start = T_list[0]+deltaT
+        T_finish = T_list[-1]-deltaT       
+    
     
     plt.figure(figsize=figsize)
     im = plt.imshow(Z, aspect='auto', origin='lower', 
-                    extent=[T_list[0]-deltaT, T_list[-1]+deltaT, delta_list[0]-deltadelta, delta_list[-1]+deltadelta],
+                    extent=[T_start, T_finish, delta_list[0]-deltadelta, delta_list[-1]+deltadelta],
                     interpolation='none', 
                     vmin = vmin,
                     vmax = vmax
                     #cmap = 'inferno'
                     )
     
-    plt.xticks(np.array(T_list))
+    if flip_T_axis:
+        plt.xticks(np.array(T_list[::-1]))
+    else:
+        plt.xticks(np.array(T_list))
     plt.yticks(np.array(delta_list))
+
+    if x_digits is not None:
+        str_x = '%.' + f'{x_digits}' + 'f'
+        plt.gca().xaxis.set_major_formatter(mticker.FormatStrFormatter(str_x))
+    if y_digits is not None:
+        str_y = '%.' + f'{y_digits}' + 'f'
+        plt.gca().yaxis.set_major_formatter(mticker.FormatStrFormatter(str_y))
 
     if result == "difference":
         plt.colorbar(im, label=r'$|\eta(π)| - |\eta(0)|$')
@@ -674,7 +698,9 @@ def plot_phase_diagram_fromdatagrid(data_grid, T_list, delta_list, figsize = Non
     plt.show()
 
 def plot_phase_diagram(T_list, delta_list, save_dir = None, general_dir = "phasediagram", figsize = None, result = "difference", bool_log = False, 
-                       regularization = None, threshold = None, vmin = None, vmax = None, save = False, save_dir_image = None, filename = None, suffix = ".svg"):
+                       regularization = None, threshold = None, vmin = None, vmax = None, save = False, save_dir_image = None, filename = None, suffix = ".svg",
+                       x_digits = None, y_digits = None, flip_T_axis = False):
+    
     data_grid = load_saved_results(T_list, delta_list, save_dir, general_dir = general_dir)
 
     if save:
@@ -688,6 +714,8 @@ def plot_phase_diagram(T_list, delta_list, save_dir = None, general_dir = "phase
                 filename = filename + f"_thresh{threshold}"
             if regularization is not None:
                 filename = filename + f"_reg{regularization}"
+            if flip_T_axis:
+                filename = filename + "flipped_T"
             filename = filename + suffix
     
         if save_dir_image is None:
@@ -697,7 +725,7 @@ def plot_phase_diagram(T_list, delta_list, save_dir = None, general_dir = "phase
 
     plot_phase_diagram_fromdatagrid(data_grid[:len(delta_list), :len(T_list)], T_list, delta_list, figsize = figsize, result = result, bool_log = bool_log,
                                     regularization = regularization, threshold = threshold, vmin = vmin, vmax = vmax,
-                                    save = save, save_dir_image = save_dir_image, filename = filename)
+                                    save = save, save_dir_image = save_dir_image, filename = filename, x_digits=x_digits, y_digits = y_digits, flip_T_axis=flip_T_axis)
 
 #incomplete (illustrative) version of plot_single_entry_fromdatagrid!
 def plot_single_entry_fromdatagrid_2(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name="op_real",
