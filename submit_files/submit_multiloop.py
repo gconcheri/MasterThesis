@@ -40,7 +40,6 @@ edge = True
 
 for loop_list_name in loop_list_names:
     loop_list = getattr(vps, loop_list_name)
-    print("Using loop list:", loop_list_name)
 
     save_dir = (
         f"{T_list_name}"
@@ -54,7 +53,6 @@ for loop_list_name in loop_list_names:
     )
 
     for delta in delta_list:
-        print("computing delta: ", delta)
         for T in T_list:
             kwargs = {
                 'T': T,

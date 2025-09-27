@@ -147,7 +147,8 @@ def compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, save_dir, l
     fpath = os.path.join(save_dir, fname)
 
     if os.path.exists(fpath) == False:
-        if delta == 0 or N_shots < 2: 
+        if delta == 0 or N_shots < 2:
+            print(f"Only 1 shot for delta: {delta}")
             #no need to average when delta = 0, or N_shots = 1 because no random disorder is added in this case!
             #N_shots = 0 equivalent to N_shots = 1
             #if N_shots = 0 this is just the old algorithm
