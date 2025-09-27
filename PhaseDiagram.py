@@ -734,7 +734,6 @@ def plot_line_phase_diagram_fromdatagrids(data_grid_list, delta, T_list, delta_l
     delta_idx = delta_list.index(delta)   
     results = {}
 
-    
     for idx, data_grid in enumerate(data_grid_list):
         data_grid = get_data_grid_results(data_grid, T_list, delta_list, result=result, bool_log = bool_log, regularization = regularization, threshold=threshold)
         data = data_grid[delta_idx,:]
@@ -764,8 +763,8 @@ def plot_line_phase_diagram_fromdatagrids(data_grid_list, delta, T_list, delta_l
             save_dir_image = "figures_phasediagram"
         os.makedirs(save_dir_image, exist_ok=True)
         if filename is None:
-            filename = f"finite_size_scaling_{result}"
-            filename += f"_{delta}"
+            filename = f"finite_size_scaling_result{result}"
+            filename += f"_delta{delta}"
             filename += ".png"   
         plt.savefig(os.path.join(save_dir_image, filename))
     

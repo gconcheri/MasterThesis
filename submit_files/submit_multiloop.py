@@ -13,12 +13,12 @@ config = {
     },
     'task_parameters': [],
     'requirements_slurm': {
-        'time': '5-00:00:00', # d-hh:mm:ss
+        'time': '2-00:00:00', # d-hh:mm:ss
         'mem': '8G',
         'partition': 'cpu',
-        'qos': 'longrun',
+        'qos': 'normal',
         'nodes': 1,
-        'cpus-per-task': 20,
+        'cpus-per-task': 12,
     },
     'options': {}
 }
@@ -30,7 +30,7 @@ delta_list = getattr(vps, delta_list_name)
 T_list = getattr(vps, T_list_name)
 
 # Choose multiple loop list names to sweep
-loop_list_names = ['loop_1', 'loop_3', 'loop_5']  # extend as needed
+loop_list_names = ['loop_0', 'loop_20', 'loop_30']  # extend as needed
 
 N_shots = 15
 system_size = 41

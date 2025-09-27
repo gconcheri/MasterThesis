@@ -6,6 +6,8 @@ loop_2 = [10 for _ in range(12)]
 loop_3 = [11 for _ in range(13)]
 loop_4 = [12 for _ in range(14)]
 loop_5 = [13 for _ in range(15)]
+loop_20 = [20 for _ in range(22)]
+loop_30 = [30 for _ in range(32)]
 
 delta_list_0 = [0,0.1,0.2,0.3]
 delta_list_1 = [0,0.1,0.2,0.3,0.4,0.5]

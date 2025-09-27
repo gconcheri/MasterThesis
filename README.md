@@ -38,4 +38,5 @@ aggiungi funzioni di plot nella simulazione cluster, in modo che vengano diretta
 
 sistema cluster folder su workstation! allinealo con quello che hai nel pc
 
-prima o poi aggiungi funzione plot che metta insieme più single entry plots ma non semplicemente con un for come fai adesso, ma con un subplot di subplots!
+
+da controllare nuovo file PhaseDiagram_plots.py dove ho cercato di fare subplot di subplot - figsize è sbagliata, non riesco a controllare numero di colonne, e subplots vengono stackati uno di fianco all'altro
