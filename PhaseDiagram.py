@@ -727,118 +727,52 @@ def plot_phase_diagram(T_list, delta_list, save_dir = None, general_dir = "phase
                                     regularization = regularization, threshold = threshold, vmin = vmin, vmax = vmax,
                                     save = save, save_dir_image = save_dir_image, filename = filename, x_digits=x_digits, y_digits = y_digits, flip_T_axis=flip_T_axis)
 
-#incomplete (illustrative) version of plot_single_entry_fromdatagrid!
-def plot_single_entry_fromdatagrid_2(data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name="op_real",
-                                    figsize=(12, 5), shot_idx=None, threshold=None):
+def plot_line_phase_diagram_fromdatagrids(data_grid_list, delta, T_list, delta_list, loop_size_list, result = "difference", bool_log = False, regularization = None, 
+                                    threshold = None, save = False, save_dir_image = None, filename = None, return_results = True):
+
+
+    delta_idx = delta_list.index(delta)   
+    results = {}
+
     
-    if threshold is not None:
-        data_grid = remove_shots_fromdatagrid(data_grid, T_list, delta_list, threshold=threshold)
+    for idx, data_grid in enumerate(data_grid_list):
+        data_grid = get_data_grid_results(data_grid, T_list, delta_list, result=result, bool_log = bool_log, regularization = regularization, threshold=threshold)
+        data = data_grid[delta_idx,:]
+        plt.plot(T_list, data, label = f'loop size: {loop_size_list[idx]}')
+        
+        if return_results:
+            results[idx] = data
+
+
+    plt.xlabel('T')
+    if result == "difference":
+        plt.ylabel(r'$|\eta(π)| - |\eta(0)|$')
+    elif result == "ratio":
+        if bool_log:
+            plt.ylabel(r'$\log(\frac{|\eta(π)|}{|\eta(0)|})$')
+        else:
+            plt.ylabel(r'$\frac{|\eta(π)|}{|\eta(0)|}$') 
+
+    plt.legend()
+
+    plt.title('phase diagram along ' + r'$\Delta$ = ' + f'{delta}') 
+
+    plt.tight_layout()
+
+    if save:
+        if save_dir_image is None:
+            save_dir_image = "figures_phasediagram"
+        os.makedirs(save_dir_image, exist_ok=True)
+        if filename is None:
+            filename = f"finite_size_scaling_{result}"
+            filename += f"_{delta}"
+            filename += ".png"   
+        plt.savefig(os.path.join(save_dir_image, filename))
     
-    entry = data_grid[delta_idx, T_idx]
-    floquet_cycles = np.arange(N_cycles + 1)
-    freqs = frequencies(N_cycles + 1)
+    plt.show()
 
-    if entry is None:
-        print(f"No data available for Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}")
-        return
-
-    plt.figure(figsize=figsize)
-
-    def plot_shots(data, x, ylabel, axx=None):
-        if shot_idx is not None:
-            if 0 <= shot_idx < len(data):
-                if axx is not None:
-                    axx.plot(x, data[shot_idx], label=f'Shot {shot_idx+1}')
-                    axx.legend()
-                    axx.set_xlabel('Floquet Cycles' if ylabel != 'Fourier Transform' else 'Frequency')
-                    axx.set_ylabel(ylabel)
-                else:
-                    plt.plot(x, data[shot_idx], label=f'Shot {shot_idx+1}')
-                    plt.legend()
-                    plt.xlabel('Floquet Cycles' if ylabel != 'Fourier Transform' else 'Frequency')
-                    plt.ylabel(ylabel)
-            else:
-                print(f"shot_idx {shot_idx} out of range (max {len(data)-1})")
-                return
-        else:
-            for i, shot in enumerate(data):
-                if axx is not None:
-                    axx.plot(x, shot, label=f'Shot {i+1}')
-                else:
-                    plt.plot(x, shot, label=f'Shot {i+1}')
-            if axx is not None:
-                axx.legend()
-                axx.set_xlabel('Floquet Cycles' if ylabel != 'Fourier Transform' else 'Frequency')
-                axx.set_ylabel(ylabel)
-            else:
-                plt.legend()
-                plt.xlabel('Floquet Cycles' if ylabel != 'Fourier Transform' else 'Frequency')
-                plt.ylabel(ylabel)
-        # Titles and layout
-        if axx is not None:
-            axx.set_title(f'Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}')
-        else:
-            plt.title(f'Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}')
-            plt.tight_layout()
-            plt.show()
-
-
-    if name in ["op_real", "loop_0", "loop_e"]:
-        ylabel = {
-            "op_real": "Order Parameter",
-            "loop_0": "Loop Expectation Value (no anyon)",
-            "loop_e": "Loop Expectation Value (e anyon)"
-        }[name]
-        data = entry[name]
-        if delta_idx == 0 or not isinstance(data, list):
-            plt.plot(floquet_cycles, data)
-            plt.xlabel('Floquet Cycles')
-            plt.ylabel(ylabel)
-            plt.title(f'Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}')
-            plt.tight_layout()
-            plt.show()
-        else:
-            plot_shots(data, floquet_cycles, ylabel)
-    elif name == "op_ft":
-        data = entry[name]
-        ylabel = "Fourier Transform"
-        if delta_idx == 0 or not isinstance(data, list):
-            plt.plot(freqs, np.abs(data))
-            plt.xlabel('Frequency')
-            plt.ylabel(ylabel)
-            plt.title(f'Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}')
-            plt.tight_layout()
-            plt.show()
-        else:
-            plot_shots([np.abs(shot) for shot in data], freqs, ylabel)
-    elif name == "real_ft":
-        data_real = entry["op_real"]
-        data_ft = entry["op_ft"]
-
-        fig, ax = plt.subplots(1, 2, figsize=figsize)
-
-        if delta_idx == 0 or not isinstance(data_real, list):
-            ax[0].plot(floquet_cycles, data_real)
-            ax[0].set_xlabel('Floquet Cycles')
-            ax[0].set_ylabel('Order Parameter')
-            ax[0].set_title(f'Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}')
-        else:
-            plot_shots(data_real, floquet_cycles, 'Order Parameter', axx=ax[0])
-        
-        if delta_idx == 0 or not isinstance(data_ft, list):
-            ax[1].plot(freqs, np.abs(data_ft))
-            ax[1].set_xlabel('Frequency')
-            ax[1].set_ylabel('Fourier Transform')
-            ax[1].set_title(f'Δ = {delta_list[delta_idx]}, T = {T_list[T_idx]}')
-        else:
-            plot_shots([np.abs(shot) for shot in data_ft], freqs, 'Fourier Transform', axx=ax[1])
-        
-        plt.tight_layout()
-        plt.show()
-
-    else:
-        print(f"Invalid name '{name}'. Choose from 'op_real', 'loop_0', 'loop_e', 'op_ft', or 'both'.")
-        return
+    if return_results:
+        return results
 
 def plot_single_entry_fromdatagrid(
     data_grid, delta_idx, T_idx, T_list, delta_list, N_cycles, name="op_real",
