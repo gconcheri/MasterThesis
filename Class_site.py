@@ -94,8 +94,8 @@ class SitesOBC(BaseSites):
         self.partition = self.get_partition()
         self.ids_A = [id for id in self.ids if self.partition[id] == 'A']
         self.ids_B = [id for id in self.ids if self.partition[id] == 'B']  
-        
-        
+
+    #%% site functions
     def id_to_idxidy(self, id):
         idy = (id + 1) // self.Nxsites_2
         if idy == 0:
@@ -126,7 +126,7 @@ class SitesOBC(BaseSites):
         else:
             return self.Nxsites_2
         
-    
+    #%% bond functions
     #define bond list for xx bonds, then for yy bonds and zz bonds, in this way we can then construct the Hamiltonian with fermionic operators!!
     def get_bonds(self):
         """
@@ -350,6 +350,7 @@ class SitesOBC(BaseSites):
         
         return [id, id_right, id_upright, id_up, id_upleft, id_left]
     
+    #%% loop functions
     def get_loop_parallelogram(self):
         """
         Returns:
@@ -531,62 +532,7 @@ class SitesOBC(BaseSites):
         prefactor = prefactor * base_prefactor
 
         return prefactor, indeces_loop_list_flattened, links_list
-
-
-    # def compute_loop_prefactor(self, indeces_loop_list):
-    #     """Compute the integer and a complex phase prefactor based on ordering rules.
-
-    #     Rule: for each id (first element of each [id, diag_id] pair)
-    #     starting from the SECOND sublist (row index 1):
-    #       1. Count how many diag_id in the PREVIOUS sublist have x-coordinate STRICTLY greater than x(id).
-    #       2. Count how many diag_id in the CURRENT sublist have x-coordinate <= x(id).
-    #     Add both counts to an accumulator. Repeat for every id in every sublist from index 1 onward.
-
-    #     We return:
-    #       - total_count: the accumulated integer
-    #       - phase: 1j**total_count (example complex phase if you want to reuse same convention)
-
-    #     Parameters
-    #     ----------
-    #     indeces_loop_list : list[list[list[int,int]]]
-    #         Structure like: [ row0, row1, ... ] where each row is a list of bonds [id, diag_id] in respective row.
-    #     """
-    #     if not indeces_loop_list:
-    #         return 0, 1+0j
-    #     # Precompute x (idx) coordinate for every id encountered to avoid recomputation
-    #     x_cache = {}
-    #     def x_of(site_id):
-    #         if site_id not in x_cache:
-    #             x_cache[site_id] = self.id_to_idxidy(site_id)[0]
-    #         return x_cache[site_id]
-
-    #     # For each row build a sorted list of x(diag_id)
-    #     diag_x_rows = []
-    #     for row in indeces_loop_list:
-    #         diag_x = [x_of(bond[1]) for bond in row]
-    #         diag_x.sort()
-    #         diag_x_rows.append(diag_x)
-
-    #     total = 0
-    #     # Iterate starting from second row
-    #     for r in range(1, len(indeces_loop_list)):
-    #         prev_diag_sorted = diag_x_rows[r-1]
-    #         curr_diag_sorted = diag_x_rows[r]
-    #         len_prev = len(prev_diag_sorted)
-    #         for bond in indeces_loop_list[r]:
-    #             site_id = bond[0]
-    #             x_id = x_of(site_id)
-    #             # prev greater: number of prev diag x strictly greater than x_id
-    #             pos_prev = bisect_right(prev_diag_sorted, x_id)
-    #             greater_prev = len_prev - pos_prev
-    #             # same row less or equal: number of current diag x <= x_id
-    #             pos_curr = bisect_right(curr_diag_sorted, x_id)
-    #             less_equal_curr = pos_curr
-    #             total += greater_prev + less_equal_curr
-
-    #     phase = 1j ** total
-    #     return total, phase
-    
+ 
     def compute_loop_prefactor(self, indeces_loop_list):
         """Compute the integer and a complex phase prefactor based on ordering rules.
 
@@ -658,6 +604,41 @@ class SitesOBC(BaseSites):
             prefactor, indeces_list, links_list = self.get_general_loop(plaquette_list = plaquette_list)
             return prefactor, indeces_list, links_list
 
+    #%% other functions
+
+    #sistema questa funzione per far si che divida il reticolo in due metà esatte
+    def get_sites_halfpartition(self):
+        """
+        Returns a list of the site indices in systems A x<x_c and B x>=x_c given by cutting lattice in half in x direction.
+        """
+    
+        halflattice_list_A = []
+
+        for id in self.ids:
+            idx, idy = self.id_to_idxidy(id)
+            if idy == 0 or idy == self.Nyrows - 1:
+                if idx < self.Nxsites_1/2:
+                    halflattice_list_A.append(id)
+            else:
+                if idx < self.Nxsites_2/2:
+                    halflattice_list_A.append(id)
+
+        lattice_list = self.ids.tolist()
+
+        halflattice_list_B = [x for x in lattice_list if x not in halflattice_list_A]
+
+        return halflattice_list_A, halflattice_list_B
+    
+    #usa metodo di general loop
+    def get_sites_bulkpartition(self, plaquette_list = None):
+        list_A = self.get_general_loop(plaquette_list = plaquette_list)[1]
+        lattice_list = self.ids.tolist()
+        list_B = [x for x in lattice_list if x not in list_A]
+
+        return list_A, list_B
+
+
+
     def get_current_sites(self):
         if self.Npy != self.Npx or self.Npy % 2 == 0 or self.Npy == 1:
             raise AssertionError("Npx and Npy must both be equal, odd and greater than 1")
@@ -678,7 +659,6 @@ class SitesOBC(BaseSites):
         
         return current_list
     
-
 
 
 class SitesProtBonds(BaseSites):
@@ -905,8 +885,6 @@ class SitesProtBonds(BaseSites):
         
         return np.array(coords)
 
-        
-
 
 
 class SitesPBCx(BaseSites):
@@ -1129,6 +1107,8 @@ class SitesPBCx(BaseSites):
             index = 2*idy + (idx//2)*2*self.Nyrows + (idx % 2)
             Op[index,id] = 1.
         return Op
+
+
 
 class SitesPBCxy(SitesPBCx):
     """ The lattice has periodic boundary conditions (PBC) along both the x and y direction. 
