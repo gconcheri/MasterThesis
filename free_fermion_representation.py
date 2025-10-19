@@ -41,8 +41,7 @@ class FermionicGaussianRepresentation:
 		self.he_z = generate_h_Majorana(model, Jxx=0.0, Jyy=0.0, Jzz=1.0, type='Anyon')
 
 
-	""" These commented lines for now don't work and we don't need them!"""
-	#%%
+	#%% These commented lines for now don't work and we don't need them
 	# def Hamiltonian_dirac(self, Hmaj):
 	# 	'''
 	# 	Calculates the Dirac Hamiltonian for the Majorana Hamiltonian Hmaj.
@@ -75,7 +74,7 @@ class FermionicGaussianRepresentation:
 	# def update_corr_matrix(self, H, t):
 	# 	self.Corr = expm(1j * 2 * H * t) @ self.Corr @ expm(- 1j * 2 * H * t)
 
-	#%%	
+	#%%	update reset commands
 
 	def update_cov_e_matrix(self, R):
 		self.Cov_e = R @self.Cov_e @ R.T
@@ -89,7 +88,7 @@ class FermionicGaussianRepresentation:
 	def reset_cov_e_matrix(self):
 		self.Cov_e = self.Cov.copy()
 
-#%%
+	#%% old expectation value
 	def expectation_val_Majorana_string_old(self, model = None, small_loop = False, majoranas = None, factor = None):
 		"""
 		Using Wick's theorem, we calculate <gamma_i ... gamma_j> = (-1j)^(len(gamma_i...gamma_j)/2) Pf(cov_{i,...,j})
@@ -136,7 +135,7 @@ class FermionicGaussianRepresentation:
 	
 		return prefactor*pf.pfaffian(Cov_0_reduced), prefactor_e*pf.pfaffian(Cov_e_reduced)  # is the pfaffian directly the expectation value of the string?
 
-#%%
+	#%% new expectation values
 
 	def expectation_val_Majorana_string(self, Cov = None, indices = None, factor = None):
 		"""
@@ -199,9 +198,8 @@ class FermionicGaussianRepresentation:
 	
 	#for not it is clear that the current density does not work as it should. This could be related to the amibiguity in the 
 	#definition of the occupation number of the fermion dependent on a certain bond orientation! 
-# %%
 
-#%%
+	#%% current density
 	
 	def majorana_density_0(self, indices): # I should add link terms here, but for now I assume all phi_jk = 1
 		"""
@@ -250,7 +248,8 @@ class FermionicGaussianRepresentation:
 			current_density.append(self.total_majorana_density(i, standard = standard))
 		
 		return current_density
-#%%
+	
+	#%% floquet op ham
 	
 	def floquet_operator_ham(self, T = 1, alpha = -1, anyon = False):
 		t = T*np.pi/4.
@@ -264,8 +263,7 @@ class FermionicGaussianRepresentation:
 		R = Rz @ Ry @ Rx 
 		return Rx, Ry, Rz, R
 	
-	
-	
+#%% floquet op 
 def floquet_operator(Op, t, alpha = -1):
 	"""
 	Calculates R = e^alpha 4ht, given h matrix of majorana operator
@@ -281,7 +279,7 @@ def floquet_operator(Op, t, alpha = -1):
 # 	R = Rz @ Ry @ Rx 
 # 	return Rx, Ry, Rz, R
 
-
+#%% generate Hamiltonian, disorder and covariance matrix
 
 def u_config(model, type=None):
 	u = np.ones((model.Nsites, model.Nsites), dtype=np.complex128)
@@ -392,6 +390,7 @@ def generate_disorder_term(model, cov, delta, type = None, edgepar = None):
 
 	return h_dis
 
+
 def build_covariance_matrix(model, diagonalcov = True):
 	"""
 	Builds the covariance matrix of the initial states |psi_0> and |psi_e> of the 
@@ -440,5 +439,3 @@ def build_covariance_matrix(model, diagonalcov = True):
 # 	FGH = FermionicGaussianRepresentation(Hmaj)
 
 # 	Cov = FGH.covariance_matrix_ground_state()
-
-# %%

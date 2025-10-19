@@ -1,0 +1,83 @@
+         238677 function calls in 34.260 seconds
+
+   Ordered by: cumulative time
+   List reduced from 63 to 50 due to restriction <50>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.007    0.007   34.260   34.260 PhaseDiagram.py:142(main)
+        1    1.083    1.083   34.057   34.057 PhaseDiagram.py:50(order_parameter_delta_T)
+       11    0.009    0.001   13.969    1.270 free_fermion_representation.py:191(order_parameter)
+       11    0.006    0.001   13.959    1.269 free_fermion_representation.py:168(expectation_value_loop)
+       22    0.094    0.004   13.891    0.631 free_fermion_representation.py:140(expectation_val_Majorana_string)
+       22    0.047    0.002   13.797    0.627 pfaffian.py:228(pfaffian)
+       22    6.563    0.298   13.698    0.623 pfaffian.py:250(pfaffian_LTL)
+        6    0.111    0.018    9.647    1.608 free_fermion_representation.py:272(floquet_operator)
+        6    0.106    0.018    9.536    1.589 _matfuncs.py:217(expm)
+    19756    7.017    0.000    7.037    0.000 numeric.py:896(outer)
+        6    5.996    0.999    5.996    0.999 {built-in method scipy.linalg._matfuncs_expm.pick_pade_structure}
+       10    4.686    0.469    4.686    0.469 free_fermion_representation.py:82(update_cov_0_matrix)
+       10    4.661    0.466    4.661    0.466 free_fermion_representation.py:79(update_cov_e_matrix)
+        6    3.433    0.572    3.433    0.572 {built-in method scipy.linalg._matfuncs_expm.pade_UV_calc}
+        1    0.019    0.019    0.195    0.195 free_fermion_representation.py:11(__init__)
+        6    0.106    0.018    0.139    0.023 free_fermion_representation.py:302(generate_h_Majorana)
+       44    0.000    0.000    0.102    0.002 {method 'max' of 'numpy.ndarray' objects}
+       44    0.000    0.000    0.102    0.002 _methods.py:43(_amax)
+       44    0.102    0.002    0.102    0.002 {method 'reduce' of 'numpy.ufunc' objects}
+       14    0.000    0.000    0.071    0.005 free_fermion_representation.py:289(u_config)
+       14    0.070    0.005    0.070    0.005 numeric.py:144(ones)
+    29518    0.062    0.000    0.062    0.000 {method 'copy' of 'numpy.ndarray' objects}
+        1    0.016    0.016    0.018    0.018 free_fermion_representation.py:398(build_covariance_matrix)
+    39512    0.017    0.000    0.017    0.000 {method 'ravel' of 'numpy.ndarray' objects}
+       30    0.011    0.000    0.011    0.000 {built-in method numpy.zeros}
+        7    0.006    0.001    0.009    0.001 Class_site.py:130(get_bonds)
+        1    0.007    0.007    0.007    0.007 {method 'conj' of 'numpy.ndarray' objects}
+        1    0.001    0.001    0.006    0.006 free_fermion_representation.py:85(reset_cov_0_matrix)
+     9900    0.005    0.000    0.005    0.000 {method 'argmax' of 'numpy.ndarray' objects}
+       11    0.003    0.000    0.005    0.000 Class_site.py:360(get_loop)
+        1    0.001    0.001    0.005    0.005 free_fermion_representation.py:88(reset_cov_e_matrix)
+    50373    0.003    0.000    0.003    0.000 {method 'append' of 'list' objects}
+    39540    0.003    0.000    0.003    0.000 {built-in method numpy.asarray}
+    18088    0.002    0.000    0.002    0.000 Class_site.py:98(id_to_idxidy)
+        1    0.000    0.000    0.001    0.001 Class_site.py:83(__init__)
+       14    0.000    0.000    0.001    0.000 Class_site.py:292(get_anyonbonds)
+    19756    0.001    0.000    0.001    0.000 numeric.py:892(_outer_dispatcher)
+        1    0.001    0.001    0.001    0.001 Class_site.py:202(get_diagonalbonds)
+    11529    0.001    0.000    0.001    0.000 Class_site.py:107(idxidy_to_id)
+        1    0.000    0.000    0.001    0.001 Class_site.py:55(get_partition)
+       15    0.001    0.000    0.001    0.000 {built-in method numpy.array}
+       26    0.000    0.000    0.000    0.000 {built-in method numpy.empty}
+       14    0.000    0.000    0.000    0.000 fromnumeric.py:1366(argmin)
+        6    0.000    0.000    0.000    0.000 numerictypes.py:471(issubdtype)
+       22    0.000    0.000    0.000    0.000 {method 'astype' of 'numpy.ndarray' objects}
+       14    0.000    0.000    0.000    0.000 fromnumeric.py:51(_wrapfunc)
+       44    0.000    0.000    0.000    0.000 Class_site.py:338(get_plaquettecoordinates)
+       44    0.000    0.000    0.000    0.000 {built-in method builtins.abs}
+       11    0.000    0.000    0.000    0.000 Class_site.py:438(get_prefactor)
+       12    0.000    0.000    0.000    0.000 numerictypes.py:289(issubclass_)
+
+
+Major Time Sinks:
+pf.pfaffian()
+
+Cost: ~14 seconds total
+
+Cause: You call this for reduced covariance matrices in expectation_val_Majorana_string(...)
+
+Observation: This becomes expensive for large loops (i.e., large Majorana strings)
+
+scipy.linalg.expm()
+
+Cost: ~9.5 seconds total
+
+Cause: You build Floquet operators R0, Re using full matrix exponentials
+
+Observation: expm scales poorly with size (O(n³) for dense)
+
+Covariance updates R @ Cov @ R.T
+
+Cost: ~9.3 seconds total
+
+Cause: Matrix-matrix multiplications in update_cov_*_matrix
+
+Observation: Still dense — possibly sparsity could help here
+
