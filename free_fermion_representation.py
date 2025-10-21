@@ -1,6 +1,6 @@
 import numpy as np
 from scipy import sparse
-from scipy.linalg import expm
+from scipy.linalg import expm, schur
 from pfapack import pfaffian as pf
 from numba import njit
 
@@ -249,6 +249,62 @@ class FermionicGaussianRepresentation:
 		
 		return current_density
 	
+	#%% entanglement entropy & participation ratio
+
+	def ent_entropy_partition(self, e = True, partition = 'half'):
+		if e:
+			mat = self.Cov_e.real.astype(float)
+		else:
+			mat = self.Cov_0.real.astype(float)
+
+		if partition == 'half':
+			indeces_A, indeces_B = self.model.get_sites_halfpartition()
+		elif partition == 'bulk':
+			indeces_A, indeces_B = self.model.get_sites_bulkpartition()
+		elif partition is None:
+			T, _ = schur(mat, output = 'real')
+			# print('Schur form T:\n', T)
+			eigvals = _extract_eigvals_from_real_schur(T)
+			# print(eigvals)
+			return ent_entropy(eigvals)
+		
+		maj_A = np.zeros(self.model.Nsites, dtype=bool)
+		maj_B = np.zeros(self.model.Nsites, dtype=bool)
+		maj_A[indeces_A] = True        # set selected indices to True
+		maj_B[indeces_B] = True
+
+		cov_A = mat[maj_A][:, maj_A]
+		cov_B = mat[maj_B][:, maj_B]
+
+		T_A, _ = schur(cov_A, output = 'real')
+		T_B, _ = schur(cov_B, output = 'real')
+
+		# optional debug prints:
+		# print("Schur form T_A:\n", T_A)
+		# print("Schur form T_B:\n", T_B)
+
+		eigvals_A = _extract_eigvals_from_real_schur(T_A)
+		eigvals_B = _extract_eigvals_from_real_schur(T_B)
+
+		return ent_entropy(eigvals_A), ent_entropy(eigvals_B)
+	
+	def participation_ratio(self, e = True):
+		if e:
+			mat = self.Cov_e
+		else:
+			mat = self.Cov_0
+
+		sum = 0
+		N = self.model.Nsites
+
+		for i in range(N):
+			for j in range(N):
+				sum += np.abs(mat[i,j])**4/N**2
+
+		return sum
+
+
+	
 	#%% floquet op ham
 	
 	def floquet_operator_ham(self, T = 1, alpha = -1, anyon = False):
@@ -262,7 +318,42 @@ class FermionicGaussianRepresentation:
 		Rz = expm(alpha*hz*t*4)
 		R = Rz @ Ry @ Rx 
 		return Rx, Ry, Rz, R
+
+def _extract_eigvals_from_real_schur(T, tol=1e-12):
+    n = T.shape[0]
+    i = 0
+    vals = []
+    while i < n:
+        # 2x2 block detected by subdiagonal element (usual real Schur indicator)
+        if i < n - 1 and abs(T[i+1, i]) > tol:
+            vals.append(abs(T[i+1, i]))
+            i += 2
+        else:
+            # 1x1 real block (typically zero for antisymmetric matrices)
+            vals.append(np.real_if_close(T[i, i]))
+            i += 1
+    return np.array(vals)
+
+def ent_entropy(vals):
+	""" 
+	Takes as input only positive eigvals obtained from Schur decompositon of covariance matrix 
+	Formula: 
+	S = -  Σ_j (1+λ_j)/2 log[(1+λ_j)/2] + (1- λ_j)/2 log[(1- λ_j)/2]
+	"""
+
+	S = 0
+	for lam in vals:
+		p1 = (1 + lam)/2.
+		p2 = (1 - lam)/2.
+
+		if p1 > 0:
+			S += - p1 * np.log(p1)
+		if p2 > 0:
+			S += - p2 * np.log(p2)
 	
+	return S
+
+
 #%% floquet op 
 def floquet_operator(Op, t, alpha = -1):
 	"""
