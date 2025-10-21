@@ -249,6 +249,31 @@ class FermionicGaussianRepresentation:
 		
 		return current_density
 	
+	#new definition of densities considering that frobenius norm of covariance matrix is conserved!
+
+	def total_majorana_density_tilde(self, cov, index): 
+		"""
+		given index j, I calculated sum_{i!=j} |cov_ij|^2
+		"""
+		j = index
+		n_j_tilde = 0
+
+		for i in range(self.model.Nsites):
+			if i != j:
+				n_j_tilde += np.abs(cov[i,j])**2
+
+		return n_j_tilde
+	
+	def current_density_tilde(self, cov):
+		current_sites = self.model.get_current_sites()
+		current_density_tilde = []
+		for i in current_sites:
+			current_density_tilde.append(self.total_majorana_density_tilde(cov, i))
+		
+		return current_density_tilde
+
+		
+	
 	#%% entanglement entropy & participation ratio
 
 	def ent_entropy_partition(self, e = True, partition = 'half'):

@@ -648,10 +648,12 @@ class SitesOBC(BaseSites):
         current_list = []
 
         y = self.Nyrows/2
-        if y % 2 == 1:
-            x = self.Nxsites_2/2
-        else:
-            x = self.Nxsites_2/2 + 1
+        # if y % 2 == 1:
+        #     x = self.Nxsites_2/2
+        # else:
+        #     x = self.Nxsites_2/2 + 1
+
+        x = int(self.Nxsites_2*3/4)
 
         while x < self.Nxsites_2:
             current_list.append(int(self.idxidy_to_id(x,y)))
