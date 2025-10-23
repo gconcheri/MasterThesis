@@ -251,10 +251,15 @@ class FermionicGaussianRepresentation:
 	
 	#new definition of densities considering that frobenius norm of covariance matrix is conserved!
 
-	def total_majorana_density_tilde(self, cov, index): 
+	def total_majorana_density_tilde(self, index, e = False): 
 		"""
 		given index j, I calculated sum_{i!=j} |cov_ij|^2
 		"""
+		if e:
+			cov = self.Cov_e
+		else:
+			cov = self.Cov_0
+
 		j = index
 		n_j_tilde = 0
 
@@ -263,12 +268,12 @@ class FermionicGaussianRepresentation:
 				n_j_tilde += np.abs(cov[i,j])**2
 
 		return n_j_tilde
-	
-	def current_density_tilde(self, cov):
+
+	def current_density_tilde(self, e = False):
 		current_sites = self.model.get_current_sites()
 		current_density_tilde = []
 		for i in current_sites:
-			current_density_tilde.append(self.total_majorana_density_tilde(cov, i))
+			current_density_tilde.append(self.total_majorana_density_tilde(i, e))
 		
 		return current_density_tilde
 
@@ -276,7 +281,7 @@ class FermionicGaussianRepresentation:
 	
 	#%% entanglement entropy & participation ratio
 
-	def ent_entropy_partition(self, e = True, partition = 'half'):
+	def ent_entropy_partition(self, e = False, partition = 'half'):
 		if e:
 			mat = self.Cov_e.real.astype(float)
 		else:
@@ -313,20 +318,24 @@ class FermionicGaussianRepresentation:
 
 		return ent_entropy(eigvals_A), ent_entropy(eigvals_B)
 	
-	def participation_ratio(self, e = True):
+	def participation_ratio(self, e = False):
 		if e:
 			mat = self.Cov_e
 		else:
 			mat = self.Cov_0
+
+		sq_mat_norm = np.linalg.norm(mat, 'fro')**2  # (Frobenius norm)**2
 
 		sum = 0
 		N = self.model.Nsites
 
 		for i in range(N):
 			for j in range(N):
-				sum += np.abs(mat[i,j])**4/N**2
+				sum += np.abs(mat[i,j])**4
+		
+		sum = sum / sq_mat_norm**2
 
-		return sum
+		return sum, sq_mat_norm
 
 
 	
