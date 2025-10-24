@@ -9,16 +9,16 @@ config = {
     'task': {
         'type': 'PythonFunctionCall',
         'module': 'PhaseDiagramCluster',
-        'function': 'simulation'
+        'function': 'simulation_T_list'
     },
     'task_parameters': [],
     'requirements_slurm': {
         'time': '2-00:00:00', # d-hh:mm:ss
-        'mem': '8G',
+        'mem': '10G',
         'partition': 'cpu',
         'qos': 'normal',
         'nodes': 1,
-        'cpus-per-task': 12,
+        'cpus-per-task': 20,
     },
     'options': {}
 }
@@ -30,16 +30,20 @@ delta_list = getattr(vps, delta_list_name)
 T_list = getattr(vps, T_list_name)
 
 # Choose multiple loop list names to sweep
-loop_list_names = ['loop_0', 'loop_20', 'loop_30']  # extend as needed
+loop_list_names = ['loop_halfsize11', 'loop_halfsize21', 'loop_halfsize31', 'loop_halfsize35']  # extend as needed
+system_sizes = [11, 21, 31, 35]
 
 N_shots = 15
-system_size = 41
 N_cycles = 15
 loop_type = 'general'
 edge = True
 
-for loop_list_name in loop_list_names:
+for loop_list_name, system_size in zip(loop_list_names, system_sizes):
     loop_list = getattr(vps, loop_list_name)
+
+    if len(loop_list_names) != len(system_sizes):
+        raise ValueError("loop_list_names and system_sizes must have same length")
+
 
     save_dir = (
         f"{T_list_name}"
@@ -53,9 +57,8 @@ for loop_list_name in loop_list_names:
     )
 
     for delta in delta_list:
-        for T in T_list:
             kwargs = {
-                'T': T,
+                'T_list': T_list,
                 'delta': delta,
                 'N_cycles': N_cycles,
                 'N_shots': N_shots,
