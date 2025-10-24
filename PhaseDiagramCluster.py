@@ -13,6 +13,7 @@ import variables_phasediagram_simulation as vps
 #function used to compute order parameter for number of floquet cycles = N_cycles 
 # at a specific disorder delta and coupling/time term T
 
+# for size 41, N_cycles = 15, this function takes around 2 minutes 10 seconds for delta != 0
 
 def order_parameter_delta_T(model, fgs, T, delta, N_cycles, edgepar = None, loop_type = 'general', loop_list = None):
     orderpar = []
@@ -194,7 +195,6 @@ def compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, save_dir, l
         # Save to disk if save_dir is provided
         with open(fpath, 'wb') as ffile:
             pickle.dump(data_grid_entry, ffile)
-    
 
 def simulation(**kwargs):
     """ Main function to run the simulation and compute the phase diagram data grid. """
@@ -237,3 +237,91 @@ def simulation(**kwargs):
 
     # Loop over all combinations of T and delta to compute data grid entries
     compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, save_dir, loop_type=loop_type, loop_list=loop_list)
+
+
+def simulation_delta_list(**kwargs):
+    """ Main function to run the simulation and compute the phase diagram data grid. """
+
+    # Extract parameters from kwargs
+    T = kwargs.get('T')
+    delta_list = kwargs.get('delta_list')
+    N_cycles = kwargs.get('N_cycles')
+    N_shots = kwargs.get('N_shots')
+    system_size = kwargs.get('system_size')
+    edge = kwargs.get('edge', False)
+    save_dir = kwargs.get('save_dir', None)
+    loop_type = kwargs.get('loop_type', 'general')
+    loop_list = kwargs.get('loop_list', None)
+    loop_list_name = kwargs.get('loop_list_name', None)
+
+
+    # Check required parameters
+    if None in (T, delta_list, N_cycles, N_shots, system_size):
+        raise ValueError("Missing required simulation parameters.")
+
+    # If only the name is provided, resolve to the actual list
+    if loop_list is None and loop_list_name is not None:
+        loop_list = getattr(vps, loop_list_name)
+
+    # Build a default save_dir if not provided
+    if save_dir is None:
+        save_dir = (
+            "pd"
+            + f"_size{system_size}"
+            + f"_Nshots{N_shots}"
+            + f"_cycles{N_cycles}"
+            + ("_edge" if edge else "_noedge")
+            + f"_{loop_type}_loop"
+            + (f"_{loop_list_name}" if loop_list_name else "")
+        )
+        
+    model = site.SitesOBC(Npx = system_size, Npy = system_size, edge = edge)
+    fgs = f.FermionicGaussianRepresentation(model)
+
+    # Loop over all combinations of T and delta to compute data grid entries
+    for delta in delta_list:
+        compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, save_dir, loop_type=loop_type, loop_list=loop_list)
+
+
+def simulation_T_list(**kwargs):
+    """ Main function to run the simulation and compute the phase diagram data grid. """
+
+    # Extract parameters from kwargs
+    T_list = kwargs.get('T_list')
+    delta = kwargs.get('delta')
+    N_cycles = kwargs.get('N_cycles')
+    N_shots = kwargs.get('N_shots')
+    system_size = kwargs.get('system_size')
+    edge = kwargs.get('edge', False)
+    save_dir = kwargs.get('save_dir', None)
+    loop_type = kwargs.get('loop_type', 'general')
+    loop_list = kwargs.get('loop_list', None)
+    loop_list_name = kwargs.get('loop_list_name', None)
+
+
+    # Check required parameters
+    if None in (T_list, delta, N_cycles, N_shots, system_size):
+        raise ValueError("Missing required simulation parameters.")
+
+    # If only the name is provided, resolve to the actual list
+    if loop_list is None and loop_list_name is not None:
+        loop_list = getattr(vps, loop_list_name)
+
+    # Build a default save_dir if not provided
+    if save_dir is None:
+        save_dir = (
+            "pd"
+            + f"_size{system_size}"
+            + f"_Nshots{N_shots}"
+            + f"_cycles{N_cycles}"
+            + ("_edge" if edge else "_noedge")
+            + f"_{loop_type}_loop"
+            + (f"_{loop_list_name}" if loop_list_name else "")
+        )
+        
+    model = site.SitesOBC(Npx = system_size, Npy = system_size, edge = edge)
+    fgs = f.FermionicGaussianRepresentation(model)
+
+    # Loop over all combinations of T and delta to compute data grid entries
+    for T in T_list:
+        compute_data_grid_entry(model, T, delta, fgs, N_shots, N_cycles, save_dir, loop_type=loop_type, loop_list=loop_list)

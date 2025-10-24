@@ -5,6 +5,7 @@ import copy
 
 import sys
 import os
+import time
 
 # add project root (MasterThesis) to sys.path in a portable way
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -35,6 +36,8 @@ def order_parameter_delta_T_method1(model, fgs, T, delta, N_cycles, edgepar = No
     orderpar = []
     loop_0 = []
     loop_e = []
+
+    # t_start = time.perf_counter()
 
     fgs.reset_cov_0_matrix()
     fgs.reset_cov_e_matrix()
@@ -68,6 +71,15 @@ def order_parameter_delta_T_method1(model, fgs, T, delta, N_cycles, edgepar = No
     orderpar.append(op)
     loop_0.append(value_0)
     loop_e.append(value_e) 
+
+    # t_end = time.perf_counter()
+    # elapsed = t_end - t_start
+    # try:
+    #     avg_per_cycle = elapsed / (N_cycles + 1)
+    # except Exception:
+    #     avg_per_cycle = elapsed
+
+    # print(f"[timing] order_parameter_delta_T_method1: total {elapsed:.3f}s, avg per cycle {avg_per_cycle:.3f}s (N_cycles={N_cycles})")
 
     return orderpar, loop_0, loop_e
 
